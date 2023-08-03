@@ -1,0 +1,255 @@
+---
+title: "Water Quality Data Analysis System"
+author: "APEM Ltd"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+ rmdformats::downcute:
+    highlight: tango
+    number_sections: yes
+    theme: united
+editor_options: 
+  chunk_output_type: console
+---
+
+<img src="ApemLogo.JPG" style="position:absolute;top:0px;right:0px;"/>
+
+
+```{r setup, include=FALSE}
+
+############################################### OPERATING INSTRUCTIONS ###############################################
+#
+## Introduction
+#
+# This is the Water Quality Data Analysis System, developed by APEM Ltd. This workflow will build a  report for given site IDs and return 
+#
+## Running the Toolbox:
+#
+# * Create a copy of this RStudio project and, if not present, transfer a copy of this script to the new folder. This project should also contain a folder called "Data", which contains input data files. 
+# * Before running the tool, configure the Settings in the section below, which allow users to specify:
+#   * Site IDs, both EA and APEM (maximum six sites per run). The order in which sites are specified will be reflecetd in the plots/tables.
+#   * A start date for the macroinvertebrate samples (if required).
+#   * An end date for the macroinvertebrate samples (if required).
+#   * A path to any APEM data to be imported into the tool
+#   * A guideline standard to be applied to the LIFE metric plots (0.94 or 1.0)
+#   * A flag to indicate whether or not to apply trend lines to the metric plots.
+#   * A flag to indicate whether or not to apply confidence intervals to trend lines in metric plots (if applied).
+#   * A filter to select data only for specific seasons
+#   * Options to set default values for the environmental parameters required for RICT
+# * Save a copy of the script with your parameters specified.  
+# * To run the script, use the Knit button above. This will render the report as an HTML document, saved to the top level project folder (see the files tab to the right). By default, the report will be called MI_analysis_vX.html (the report name matches the name of this script file). 
+######################################################################################################################
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, error = FALSE, message = FALSE)
+rm(list = ls())
+
+```
+
+# SETTINGS
+
+```{r settings}
+
+# Specify the name of the file containing APEM data to be imported. 
+# Data must be saved in the Data folder, but the folder should not be specified here.
+# If not importing APEM data (ie, just usign EA data), replace the path with NULL (no quotes)
+TEMPLATE_PATH <- "APEM_input_template.xlsx"
+
+# Specify the sheets to be imported from the input template. To import all worksheets enter "all"
+# Otherwise list individual worksheets in quotes: c("PROBE_DATA", "MANUAL_FIELD", "LAB_DATA").
+SHEETS <- c("PROBE_DATA", "MANUAL_FIELD", "LAB_DATA")
+
+# Start date for samples. Leave as NULL to keep all available data. If specifying date use format "YYYY-MM-DD" (including quotes).
+START_DATE <- NULL
+
+# End date for samples. Leave as NULL to keep all available data. If specifying date use format "YYYY-MM-DD" (including quotes).
+END_DATE <- NULL
+
+# Specify the parameters to be analysed.
+PARAMETERS <- "All"
+
+# Specify all water quality site ID, both EA and APEM, for analysis, in quotes.
+# Data in tables and plots in the output report will match the order specified below.
+SITES <- c("34307", "34308", "34309", "34310", "34311")
+
+# Specify a multiplier to be used for handing chemistry results outwith the LOD. Must be between 0 and 1.
+# The LOD will be multiplied by this value to generate dummy results.
+LOD_MULTIPLIER <- 0.5
+
+# Specify a folder to save output files to
+OUTPUT_PATH <- "Outputs/"
+
+```
+
+```{r libraries}
+
+## LIBRARIES
+
+# Load required libraries
+if(!require(pacman)) install.packages("pacman")
+pacman::p_load(remotes, readxl, dplyr, stringr, lubridate, ggplot2, writexl, 
+               tidyr, DT, rnrfa, leaflet, downloader, sf, GGally, gridextra,
+               rlang, readr) # new for WQ tool
+
+# Conditionally install hetoolkit from github
+if ("hetoolkit" %in% installed.packages() == FALSE) {
+  remotes::install_github("APEM-LTD/hetoolkit")
+}
+
+library(hetoolkit)
+
+# Add WQDAS-specific functions
+source("R/wq_functions.R")
+
+```
+
+```{r process_user_entry}
+
+if (is.null(TEMPLATE_PATH) == TRUE) {
+  import_APEM <- ""
+  TEMPLATE_PATH <- "NA - no APEM data supplied"
+} else {
+  import_APEM <- "R/WQ_import_APEM.Rmd"
+}
+
+# Process user date entry for reporting
+if(is.null(START_DATE) == TRUE) {
+  SDATE <- "NA - using all data"
+} else {
+  SDATE <- as.character(START_DATE)
+}
+
+if(is.null(END_DATE) == TRUE) {
+  EDATE <- "NA - using all data"
+} else {
+  EDATE <- as.character(END_DATE)
+}
+
+```
+
+```{r entry_check, warning=TRUE, error=FALSE}
+
+## Check input file exists
+if(is.null(TEMPLATE_PATH == FALSE && exists(TEMPLATE_PATH) == FALSE)){
+  stop("Input template file does not exist")
+}
+
+## Sheet names exist in template
+if(is.null(TEMPLATE_PATH) == FALSE){
+  template_sheets <- readxl::excel_sheets(paste0("Data/", TEMPLATE_PATH))
+  sheets_exist <- lapply(SHEETS, function(s) s %in% template_sheets)
+  if(FALSE %in% sheets_exist == TRUE){
+    stop("Specified sheets do not all exist in input template file")
+  }
+}
+
+## Start date in correct format
+if(is.null(START_DATE) == FALSE && IsDate(START_DATE, "%Y-%m-%d") == FALSE) {
+  stop("Start date should be in YYYY-MM-DD format")
+}
+
+## End date in correct format
+if(is.null(END_DATE) == FALSE && IsDate(END_DATE, "%Y-%m-%d") == FALSE) {
+  stop("Start date should be in YYYY-MM-DD format")
+}
+
+## End date before start date
+if((is.null(START_DATE) == FALSE && as.Date(START_DATE) > Sys.Date()) == TRUE) {
+  stop("Start data cannot be in the future")
+}
+
+## Start date before 2000 (WQA database cut off for EA data)
+if((is.null(START_DATE) == FALSE && as.Date(START_DATE) < as.Date("2000-01-01")) == TRUE) {
+  print("NOTE: EA data is not availble from the WQA database before year 2000")
+}
+
+## LOD multiplier is numeric
+if(is.numeric(LOD_MULTIPLIER) == FALSE){
+  stop("LOD multiplier must be numeric")
+}
+
+## LOD multiplier within valid range
+if(LOD_MULTIPLIER < 0 || LOD_MULTIPLIER > 1) {
+  stop("LOD multiplier must be between 0 and 1")
+}
+
+```
+
+User-specified settings:  
+
+ * Input template path: **`r TEMPLATE_PATH`**  
+ * Source sheets to import: **`r SHEETS`**  
+ * Start date: **`r SDATE`** 
+ * End date: **`r EDATE`** 
+ * Parameters of interest: **`r PARAMETERS`**  
+ 
+```{r import}
+
+# IMPORT FROM TEMPLATE
+# Load specified sheets into a list
+sheets <- lapply(SHEETS, function(i) readxl::read_excel(paste0("Data/", TEMPLATE_PATH), sheet = i))
+names(sheets) <- SHEETS
+
+params <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
+                             sheet = "PARAMETERS")   # Loads PARAMETERS tab with details of column headers
+
+## ERROR CHECK for specified parameters
+allowed_params <- params$parameter
+if (PARAMETERS != "All"){
+  check_names(PARAMETERS, allowed_params)
+} else {
+  PARAMETERS <- allowed_params
+}
+
+## AUTO-IMPORT EA DATA
+if(is.null(SITES) == FALSE){
+  wq_data <- hetoolkit::import_wq(sites = SITES,
+                                  start_date = START_DATE,
+                                  end_date = END_DATE)
+} else {
+  wq_data <- readr::read_csv("Data/wq_data_blank.csv")
+}
+
+```
+
+```{r process}
+
+## Process probe data
+if("PROBE_DATA" %in% names(sheets) == TRUE){
+  probe_data <- sheets[["PROBE_DATA"]]
+  probe_data <- extract_date_time(probe_data, "date_time")
+  
+  # Add blank variables for matching
+  probe_data <- probe_data %>%
+    dplyr::mutate(surveyor = NA_character_,
+                  location_ID = NA_character_,
+                  lab = NA_character_,
+                  sample_ID = NA_character_,
+                  source = "probe")
+}
+
+## Process field data
+if("MANUAL_FIELD" %in% names(sheets) == TRUE){
+  field_data <- sheets[["MANUAL_FIELD"]]
+  
+  # Add blank variables for matching
+  field_data <- field_data %>%
+    dplyr::mutate(date_time = NA_character_,
+                  device_sn = NA_character_,
+                  lab = NA_character_,
+                  sample_ID = NA_character_,
+                  source = "field")
+}
+
+## Process probe data
+if("LAB_DATA" %in% names(sheets) == TRUE){
+  lab_data <- sheets[["LAB_DATA"]]
+  
+  # Add blank variables for matching
+  lab_data <- lab_data %>%
+    dplyr::mutate(surveyor = NA_character_,
+                  location_ID = NA_character_,
+                  date_time = NA_character_,
+                  device_sn = NA_character_,
+                  source = "lab")
+}
+
+```
