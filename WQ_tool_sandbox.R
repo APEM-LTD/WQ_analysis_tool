@@ -148,3 +148,60 @@ IsDate <- function(x, date.format = NULL) {
   is_date[is.na(x)] = NA  # Insert NA for NA in x
   return(is_date)
 }
+
+### Test processing sheets within lists
+## Process probe data
+if("PROBE_DATA" %in% names(sheets) == TRUE){
+  #probe_data <- sheets[["PROBE_DATA"]]
+  sheets[["PROBE_DATA"]] <- extract_date_time(sheets[["PROBE_DATA"]], "date_time")
+
+  # Add blank variables for matching
+  sheets[["PROBE_DATA"]] <- sheets[["PROBE_DATA"]] %>%
+    dplyr::mutate(surveyor = NA_character_,
+                  location_ID = NA_character_,
+                  lab = NA_character_,
+                  sample_ID = NA_character_,
+                  source = "probe")
+}
+
+## Process field data
+if("MANUAL_FIELD" %in% names(sheets) == TRUE){
+  #field_data <- sheets[["MANUAL_FIELD"]]
+
+  # Add blank variables for matching
+  sheets[["MANUAL_FIELD"]] <- sheets[["MANUAL_FIELD"]] %>%
+    dplyr::mutate(date_time = NA_character_,
+                  device_sn = NA_character_,
+                  lab = NA_character_,
+                  sample_ID = NA_character_,
+                  source = "field")
+}
+
+## Process probe data
+if("LAB_DATA" %in% names(sheets) == TRUE){
+  #lab_data <- sheets[["LAB_DATA"]]
+
+  # Add blank variables for matching
+  sheets[["LAB_DATA"]] <- sheets[["LAB_DATA"]] %>%
+    dplyr::mutate(surveyor = NA_character_,
+                  location_ID = NA_character_,
+                  date_time = NA_character_,
+                  device_sn = NA_character_,
+                  source = "lab")
+}
+
+
+####
+wq_data1 <- wq_data %>%
+  tidyr::pivot_wider(id_cols = c(wq_site_id, date),
+                     names_from = det_label,
+                     values_from = result)
+
+
+#### Test openxlsx workbook
+wb <- openxlsx::buildWorkbook(list(probe_data, lab_data, field_data))
+names(wb) <- c("PROBE_DATA", "LAB_DATA", "MANUAL_FIELD")
+openxlsx::conditionalFormatting(wb, "PROBE_DATA", cols = 6, rows = 2:nrow(probe_data)+1,
+                                rule = "<20",
+                                style = createStyle(fontColour = "#0070C0"))
+saveWorkbook(wb, "test.xlsx", overwrite = TRUE)

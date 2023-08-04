@@ -50,7 +50,7 @@ rm(list = ls())
 
 # Specify the name of the file containing APEM data to be imported. 
 # Data must be saved in the Data folder, but the folder should not be specified here.
-# If not importing APEM data (ie, just usign EA data), replace the path with NULL (no quotes)
+# If not importing APEM data (ie, just using EA data), replace the path with NULL (no quotes)
 TEMPLATE_PATH <- "APEM_input_template.xlsx"
 
 # Specify the sheets to be imported from the input template. To import all worksheets enter "all"
@@ -68,7 +68,7 @@ PARAMETERS <- "All"
 
 # Specify all water quality site ID, both EA and APEM, for analysis, in quotes.
 # Data in tables and plots in the output report will match the order specified below.
-SITES <- c("34307", "34308", "34309", "34310", "34311")
+SITES <- "All" #c("34307", "34308", "34309", "34310", "34311")
 
 # Specify a multiplier to be used for handing chemistry results outwith the LOD. Must be between 0 and 1.
 # The LOD will be multiplied by this value to generate dummy results.
@@ -87,7 +87,7 @@ OUTPUT_PATH <- "Outputs/"
 if(!require(pacman)) install.packages("pacman")
 pacman::p_load(remotes, readxl, dplyr, stringr, lubridate, ggplot2, writexl, 
                tidyr, DT, rnrfa, leaflet, downloader, sf, GGally, gridextra,
-               rlang, readr) # new for WQ tool
+               rlang, readr, openxlsx) # new for WQ tool
 
 # Conditionally install hetoolkit from github
 if ("hetoolkit" %in% installed.packages() == FALSE) {
@@ -96,19 +96,19 @@ if ("hetoolkit" %in% installed.packages() == FALSE) {
 
 library(hetoolkit)
 
-# Add WQDAS-specific functions
+# Add tool-specific functions
 source("R/wq_functions.R")
 
 ```
 
 ```{r process_user_entry}
 
-if (is.null(TEMPLATE_PATH) == TRUE) {
-  import_APEM <- ""
-  TEMPLATE_PATH <- "NA - no APEM data supplied"
-} else {
-  import_APEM <- "R/WQ_import_APEM.Rmd"
-}
+# if (is.null(TEMPLATE_PATH) == TRUE) {
+#   import_APEM <- ""
+#   TEMPLATE_PATH <- "NA - no APEM data supplied"
+# } else {
+#   import_APEM <- "R/WQ_import_APEM.Rmd"
+# }
 
 # Process user date entry for reporting
 if(is.null(START_DATE) == TRUE) {
@@ -151,12 +151,12 @@ if(is.null(END_DATE) == FALSE && IsDate(END_DATE, "%Y-%m-%d") == FALSE) {
   stop("Start date should be in YYYY-MM-DD format")
 }
 
-## End date before start date
+## End date after start date
 if((is.null(START_DATE) == FALSE && as.Date(START_DATE) > Sys.Date()) == TRUE) {
   stop("Start data cannot be in the future")
 }
 
-## Start date before 2000 (WQA database cut off for EA data)
+## Start date after 2000 (WQA database cut off for EA data)
 if((is.null(START_DATE) == FALSE && as.Date(START_DATE) < as.Date("2000-01-01")) == TRUE) {
   print("NOTE: EA data is not availble from the WQA database before year 2000")
 }
@@ -180,6 +180,7 @@ User-specified settings:
  * Start date: **`r SDATE`** 
  * End date: **`r EDATE`** 
  * Parameters of interest: **`r PARAMETERS`**  
+ * LOD multiplier: **`r LOD_MULTIPLIER`**
  
 ```{r import}
 
@@ -191,6 +192,9 @@ names(sheets) <- SHEETS
 params <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
                              sheet = "PARAMETERS")   # Loads PARAMETERS tab with details of column headers
 
+metadata <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
+                             sheet = "METADATA")   # Loads PARAMETERS tab with details of column headers)
+
 ## ERROR CHECK for specified parameters
 allowed_params <- params$parameter
 if (PARAMETERS != "All"){
@@ -201,9 +205,25 @@ if (PARAMETERS != "All"){
 
 ## AUTO-IMPORT EA DATA
 if(is.null(SITES) == FALSE){
+  
+  if (SITES == "All") {
+    SITES <- unique(metadata$EA_ID)
+  }
+  
+  # Pull all data for sites
   wq_data <- hetoolkit::import_wq(sites = SITES,
-                                  start_date = START_DATE,
-                                  end_date = END_DATE)
+                                  dets = c(61, 76, 85, 111, 117, 180, 9901)) # fixed for specified WFD parameters
+  
+  # filter
+  wq_data <- wq_data %>%
+    dplyr::filter(date >= START_DATE && date <= END_DATE)
+  
+  # Restructure
+  wq_data <- wq_data %>%
+  tidyr::pivot_wider(id_cols = c(wq_site_id, date),
+                     names_from = det_label,
+                     values_from = result)
+  
 } else {
   wq_data <- readr::read_csv("Data/wq_data_blank.csv")
 }
@@ -212,44 +232,20 @@ if(is.null(SITES) == FALSE){
 
 ```{r process}
 
+# Drop empty sheets
+for (sheet in SHEETS) {
+  if (nrow(sheets[[sheet]]) == 0){
+    sheets[[sheet]] <- NULL
+  }
+}
+
 ## Process probe data
 if("PROBE_DATA" %in% names(sheets) == TRUE){
-  probe_data <- sheets[["PROBE_DATA"]]
-  probe_data <- extract_date_time(probe_data, "date_time")
-  
-  # Add blank variables for matching
-  probe_data <- probe_data %>%
-    dplyr::mutate(surveyor = NA_character_,
-                  location_ID = NA_character_,
-                  lab = NA_character_,
-                  sample_ID = NA_character_,
-                  source = "probe")
+  #probe_data <- sheets[["PROBE_DATA"]]
+  sheets[["PROBE_DATA"]] <- extract_date_time(sheets[["PROBE_DATA"]], "date_time")
 }
 
-## Process field data
-if("MANUAL_FIELD" %in% names(sheets) == TRUE){
-  field_data <- sheets[["MANUAL_FIELD"]]
-  
-  # Add blank variables for matching
-  field_data <- field_data %>%
-    dplyr::mutate(date_time = NA_character_,
-                  device_sn = NA_character_,
-                  lab = NA_character_,
-                  sample_ID = NA_character_,
-                  source = "field")
-}
-
-## Process probe data
-if("LAB_DATA" %in% names(sheets) == TRUE){
-  lab_data <- sheets[["LAB_DATA"]]
-  
-  # Add blank variables for matching
-  lab_data <- lab_data %>%
-    dplyr::mutate(surveyor = NA_character_,
-                  location_ID = NA_character_,
-                  date_time = NA_character_,
-                  device_sn = NA_character_,
-                  source = "lab")
-}
+merge <- dplyr::bind_rows(sheets)
 
 ```
+

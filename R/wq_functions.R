@@ -45,7 +45,7 @@ check_names <- function(names, allowed) {
 }
 
 
-extract_date_time <- function(df, dt_var="datetime"){
+extract_date_time <- function(df, dt_var="date_time"){
   ###
   # Function to convert values in a datetime variable into separate date and time variables.
   # https://stackoverflow.com/questions/48219732/pass-a-string-as-variable-name-in-dplyrfilter
