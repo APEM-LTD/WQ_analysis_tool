@@ -205,3 +205,20 @@ openxlsx::conditionalFormatting(wb, "PROBE_DATA", cols = 6, rows = 2:nrow(probe_
                                 rule = "<20",
                                 style = createStyle(fontColour = "#0070C0"))
 saveWorkbook(wb, "test.xlsx", overwrite = TRUE)
+
+
+
+#### Process LOD results
+probe_data <- sheets[[1]]
+probe_data <- probe_data %>%
+  tidyr::pivot_longer(cols = names(probe_data)[6:ncol(probe_data)],
+                      names_to = "parameter",
+                      values_to = "result") %>%
+  dplyr::mutate(limit = ifelse(grepl("<", result) == TRUE | grepl(">", result) == TRUE,
+                               substr(result,regexpr("[[:digit:]]", result), nchar(result)), NA_character_),
+                limit = as.numeric(limit),
+                original_result = result,
+                result = as.numeric(result))
+
+
+

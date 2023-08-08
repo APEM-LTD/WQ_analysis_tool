@@ -75,3 +75,39 @@ extract_date_time <- function(df, dt_var="date_time"){
 
   return(df)
 }
+
+
+restructure_wq_data <- function(df){
+  ###
+  # Function to restructure a dataset and infill any missing variables
+  #
+  # args:
+  #   df (dataframe/tibble): Dataframe containing data of interest.
+  #
+  # return:
+  #   (dataframe/tibble): restructured dataframe
+  ###
+
+  cols <- c("date_time", "date", "time", "location_name", "location_id", "latitude", "longitude", "device_sn",
+            "surveyor",  "lab", "sample_ID")
+
+  df_cols <- colnames(df)
+
+  for (c in cols) {
+    if(c %in% df_cols == FALSE){
+      df <- df %>%
+        dplyr::mutate(!!c := NA_character_)
+    }
+  }
+
+  df_cols <- colnames(df)
+
+  params <- df_cols[df_cols %in% cols == FALSE]
+
+  df <- df %>%
+    dplyr::select(c(all_of(cols), any_of(params)))
+
+  return(df)
+
+}
+

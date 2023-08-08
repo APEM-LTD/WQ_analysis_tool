@@ -51,7 +51,7 @@ rm(list = ls())
 # Specify the name of the file containing APEM data to be imported. 
 # Data must be saved in the Data folder, but the folder should not be specified here.
 # If not importing APEM data (ie, just using EA data), replace the path with NULL (no quotes)
-TEMPLATE_PATH <- "APEM_input_template.xlsx"
+TEMPLATE_PATH <- "WQ template example_data.xlsx"
 
 # Specify the sheets to be imported from the input template. To import all worksheets enter "all"
 # Otherwise list individual worksheets in quotes: c("PROBE_DATA", "MANUAL_FIELD", "LAB_DATA").
@@ -68,7 +68,7 @@ PARAMETERS <- "All"
 
 # Specify all water quality site ID, both EA and APEM, for analysis, in quotes.
 # Data in tables and plots in the output report will match the order specified below.
-SITES <- "All" #c("34307", "34308", "34309", "34310", "34311")
+SITES <- "All" 
 
 # Specify a multiplier to be used for handing chemistry results outwith the LOD. Must be between 0 and 1.
 # The LOD will be multiplied by this value to generate dummy results.
@@ -193,7 +193,11 @@ params <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
                              sheet = "PARAMETERS")   # Loads PARAMETERS tab with details of column headers
 
 metadata <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
-                             sheet = "METADATA")   # Loads PARAMETERS tab with details of column headers)
+                             sheet = "METADATA") %>%   # Loads PARAMETERS tab with details of column headers)
+  na.omit(.data)    # Skip blank rows due to formulae.
+
+standards <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
+                             sheet = "STANDARDS")   # Loads STANDARDS tab with details of WFD boundaries)
 
 ## ERROR CHECK for specified parameters
 allowed_params <- params$parameter
@@ -206,17 +210,24 @@ if (PARAMETERS != "All"){
 ## AUTO-IMPORT EA DATA
 if(is.null(SITES) == FALSE){
   
-  if (SITES == "All") {
+  if ("All" %in% SITES) {
     SITES <- unique(metadata$EA_ID)
   }
   
   # Pull all data for sites
-  wq_data <- hetoolkit::import_wq(sites = SITES,
+  wq_data <- hetoolkit::import_wq(sites = "SW-60250424",
                                   dets = c(61, 76, 85, 111, 117, 180, 9901)) # fixed for specified WFD parameters
   
-  # filter
-  wq_data <- wq_data %>%
-    dplyr::filter(date >= START_DATE && date <= END_DATE)
+  # filter by dates
+  if(is.null(START_DATE) == FALSE){
+    wq_data <- wq_data %>%
+      dplyr::filter(date >= START_DATE)
+  }
+  
+  if(is.null(END_DATE) == FALSE){
+    wq_data <- wq_data %>%
+      dplyr::filter(date <= END_DATE)
+  }
   
   # Restructure
   wq_data <- wq_data %>%
@@ -230,7 +241,7 @@ if(is.null(SITES) == FALSE){
 
 ```
 
-```{r process}
+```{r merge}
 
 # Drop empty sheets
 for (sheet in SHEETS) {
@@ -241,11 +252,32 @@ for (sheet in SHEETS) {
 
 ## Process probe data
 if("PROBE_DATA" %in% names(sheets) == TRUE){
-  #probe_data <- sheets[["PROBE_DATA"]]
   sheets[["PROBE_DATA"]] <- extract_date_time(sheets[["PROBE_DATA"]], "date_time")
+  sheets[["PROBE_DATA"]]$time <- strptime(sheets[["PROBE_DATA"]]$time, format = "%H:%M")
 }
 
 merge <- dplyr::bind_rows(sheets)
 
+### Standardise columns: order, adding missing (as NA)
+merge <- restructure_wq_data(merge)
+
+### Match on metadata
+full_data <- merge %>%
+  dplyr::left_join(metadata, by = "location_name") %>%
+  dplyr::left_join(standards)
+
+### Reorder columns
+full_data <- full_data
+
 ```
+
+```{r process}
+
+### Identify potential outliers, tabulate
+### Process LOD results and export/tabulate
+### Calculate summary statistics and tabulate
+
+```
+
+
 
