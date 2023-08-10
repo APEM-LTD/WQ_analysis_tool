@@ -221,4 +221,49 @@ probe_data <- probe_data %>%
                 result = as.numeric(result))
 
 
+### outliers - using boxplot.stats
+full_data <- full_data %>%
+  dplyr::mutate(outlier = FALSE)
 
+for (l in unique(full_data$location_name)){
+  for (p in param_names) {
+    temp <- full_data %>%
+      dplyr::filter(parameter == p & location_name == l)
+
+    t <- ggplot(temp) +
+      aes(x = "", y = result) +
+      geom_boxplot() +
+      labs(title = p)
+
+    #print(t)
+
+    outs <- boxplot.stats(temp$result)$out
+    #print(p)
+    #print(outs)
+
+    full_data <- full_data %>%
+      dplyr::mutate(outlier = ifelse(location_name == l & parameter == p & result %in% outs,
+                                     TRUE, outlier))
+  }
+}
+
+### Outliers original attempt
+### Identify outliers
+full_data <- full_data %>%
+  dplyr::left_join(summary_1)
+
+full_data <- full_data %>%
+  dplyr::group_by(location_name, parameter) %>%
+  dplyr::mutate(upper_bound = quantile(result, 0.95, na.rm = TRUE)) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(outlier = ifelse(result > upper_bound, TRUE, FALSE))
+
+outliers_data <- full_data %>%
+  dplyr::filter(outlier) %>%
+  dplyr::select(location_name, date, source, parameter, result, mn)
+
+if (nrow(outliers_data) > 0) {
+  OUT_tab <- DT::datatable(outliers_data)
+} else {
+  OUT_tab <- "NA - No potential outliers identified"
+}

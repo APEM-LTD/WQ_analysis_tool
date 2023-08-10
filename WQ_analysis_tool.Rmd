@@ -207,6 +207,10 @@ if (PARAMETERS != "All"){
   PARAMETERS <- allowed_params
 }
 
+```
+
+```{r ea_import}
+
 ## AUTO-IMPORT EA DATA
 if(is.null(SITES) == FALSE){
   
@@ -215,39 +219,49 @@ if(is.null(SITES) == FALSE){
   }
   
   # Pull all data for sites
-  wq_data <- hetoolkit::import_wq(sites = "SW-60250424",
-                                  dets = c(61, 76, 85, 111, 117, 180, 9901)) # fixed for specified WFD parameters
+  ea_wq_data <- hetoolkit::import_wq(sites = SITES,
+                                     dets = c(61, 76, 85, 111, 117, 180, 9901)) # fixed for specified WFD parameters
   
   # filter by dates
   if(is.null(START_DATE) == FALSE){
-    wq_data <- wq_data %>%
+    ea_wq_data <- wq_data %>%
       dplyr::filter(date >= START_DATE)
   }
   
   if(is.null(END_DATE) == FALSE){
-    wq_data <- wq_data %>%
+    ea_wq_data <- wq_data %>%
       dplyr::filter(date <= END_DATE)
   }
   
+  ### Update param names to match template
+  ea_wq_data <- ea_wq_data %>%
+    dplyr::left_join(params, by = c("det_label" = "WIMS_headers")) %>%
+    dplyr::select(c(wq_site_id, date, parameter, det_id, result, unit, qualifier)) %>%
+    dplyr::rename(location_name = wq_site_id)
+  
   # Restructure
-  wq_data <- wq_data %>%
-  tidyr::pivot_wider(id_cols = c(wq_site_id, date),
-                     names_from = det_label,
-                     values_from = result)
+  ea_wq_data <- ea_wq_data %>%
+    tidyr::pivot_wider(id_cols = c(location_name, date),
+                       names_from = parameter,
+                       values_from = result) %>%
+    dplyr::mutate(source = "EA_DATA")
   
 } else {
-  wq_data <- readr::read_csv("Data/wq_data_blank.csv")
+  ea_wq_data <- readr::read_csv("Data/wq_data_blank.csv")
 }
 
 ```
 
 ```{r merge}
 
-# Drop empty sheets
+# Drop empty sheets or add source variable
 for (sheet in SHEETS) {
   if (nrow(sheets[[sheet]]) == 0){
     sheets[[sheet]] <- NULL
+  } else {
+    sheets[[sheet]]$source <- sheet
   }
+  
 }
 
 ## Process probe data
@@ -256,10 +270,21 @@ if("PROBE_DATA" %in% names(sheets) == TRUE){
   sheets[["PROBE_DATA"]]$time <- strptime(sheets[["PROBE_DATA"]]$time, format = "%H:%M")
 }
 
-merge <- dplyr::bind_rows(sheets)
+merge <- dplyr::bind_rows(sheets) %>%
+  dplyr::bind_rows(ea_wq_data)
 
 ### Standardise columns: order, adding missing (as NA)
 merge <- restructure_wq_data(merge)
+
+
+### Extract parameter names for later use
+param_names <- names(merge)[13:ncol(merge)]
+
+### Pivot long
+merge <- merge %>%
+  tidyr::pivot_longer(cols = all_of(param_names),
+                      names_to = "parameter",
+                      values_to = "result")
 
 ### Match on metadata
 full_data <- merge %>%
@@ -267,17 +292,136 @@ full_data <- merge %>%
   dplyr::left_join(standards)
 
 ### Reorder columns
-full_data <- full_data
+#full_data <- full_data
 
 ```
 
-```{r process}
+# Quality Checks
 
-### Identify potential outliers, tabulate
+```{r qc_checks}
+
+# Negative results/outside possible range
+full_data <- full_data %>%
+  dplyr::mutate(exclude = ifelse(result < 0 | result > 100, TRUE, FALSE))   # Add others as required
+
+exclusions_data <- full_data %>%
+  dplyr::filter(exclude) %>%
+  dplyr::select(location_name, date, source, parameter, result)
+
+if (nrow(exclusions_data) > 0) {
+  EXCL_tab <- DT::datatable(exclusions_data)
+} else {
+  EXCL_tab <- "NA - No excluded results"
+}
+
+full_data <- full_data %>%
+  dplyr::filter(exclude == FALSE)
+
+```
+
+The following results have been excluded 
+
+**`r EXCL_tab`**
+
+```{r process_outliers}
+
+full_data <- full_data %>%
+  dplyr::mutate(outlier = FALSE)
+
+for (l in unique(full_data$location_name)){
+  for (p in param_names) {
+    temp <- full_data %>%
+      dplyr::filter(parameter == p & location_name == l)
+
+    t <- ggplot(temp) +
+      aes(x = "", y = result) +
+      geom_boxplot() +
+      labs(title = p)
+
+    outs <- boxplot.stats(temp$result)$out
+
+    full_data <- full_data %>%
+      dplyr::mutate(outlier = ifelse(location_name == l & parameter == p & result %in% outs,
+                                     TRUE, outlier))
+  }
+}
+
+outliers_data <- full_data %>%
+  dplyr::filter(outlier) %>%
+  dplyr::select(location_name, date, source, parameter, result)
+
+if (nrow(outliers_data) > 0) {
+  OUT_tab <- DT::datatable(outliers_data)
+} else {
+  OUT_tab <- "NA - No potential outliers identified"
+}
+
+```
+
+The table below summarises results that have been identified as potential outliers:
+
+**`r OUT_tab`**
+
+```{r process_lod}
+
 ### Process LOD results and export/tabulate
-### Calculate summary statistics and tabulate
+full_data <- full_data %>%
+  dplyr::mutate(limit = ifelse(grepl("<", result) == TRUE | grepl(">", result) == TRUE,
+                               substr(result,regexpr("[[:digit:]]", result), nchar(result)), NA_character_),
+                limit = as.numeric(limit),
+                original_result = result,
+                result = as.numeric(result))
+
+lod_tab_data <- full_data %>%
+  dplyr::filter(is.na(limit) == FALSE) %>%
+  dplyr::select(location_name, date, source, parameter, limit)
+
+if (nrow(lod_tab_data) > 0) {
+  LOD_tab <- DT::datatable(lod_tab_data)
+} else {
+  LOD_tab <- "NA - No results outwith LOD"
+}
 
 ```
 
+The table below summarises results that are outwith the limit of detection (LOD):
 
+**`r LOD_tab`**
+
+```{r process_stats}
+
+### Calculate summary statistics from all data and tabulate
+summary_1 <- full_data %>%
+  dplyr::group_by(location_name, parameter) %>%
+  dplyr::summarise(mn = mean(result, na.rm = TRUE),
+                   sd = sd(result, na.rm = TRUE),
+                   min = min(result, na.rm = TRUE),
+                   max = max(result, na.rm = TRUE),
+                   percentile = case_when(any(parameter == "temp")    ~ quantile(result, 0.98, na.rm = TRUE),
+                                          any(parameter == "RDO_sat") ~ quantile(result, 0.1, na.rm = TRUE),
+                                          any(parameter == "pH")      ~ quantile(result, 0.05, na.rm = TRUE),
+                                          any(parameter == "BOD")     ~ quantile(result, 0.9, na.rm = TRUE),
+                                          any(parameter == "amm_N")   ~ quantile(result, 0.9, na.rm = TRUE),
+                                          .default = NA_integer_)
+                   ) %>%
+  dplyr::ungroup()
+
+### Calculate summary statistics with outliers removed
+summary_2 <- full_data %>%
+  dplyr::filter(outlier == FALSE) %>%
+  dplyr::group_by(location_name, parameter) %>%
+  dplyr::summarise(mn = mean(result, na.rm = TRUE),
+                   sd = sd(result, na.rm = TRUE),
+                   min = min(result, na.rm = TRUE),
+                   max = max(result, na.rm = TRUE),
+                   percentile = case_when(any(parameter == "temp")    ~ quantile(result, 0.98, na.rm = TRUE),
+                                          any(parameter == "RDO_sat") ~ quantile(result, 0.1, na.rm = TRUE),
+                                          any(parameter == "pH")      ~ quantile(result, 0.05, na.rm = TRUE),
+                                          any(parameter == "BOD")     ~ quantile(result, 0.9, na.rm = TRUE),
+                                          any(parameter == "amm_N")   ~ quantile(result, 0.9, na.rm = TRUE),
+                                          .default = NA_integer_)
+                   ) %>%
+  dplyr::ungroup()
+
+```
 
