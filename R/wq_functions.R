@@ -88,7 +88,7 @@ restructure_wq_data <- function(df){
   #   (dataframe/tibble): restructured dataframe
   ###
 
-  cols <- c("date_time", "date", "time", "location_name", "location_id", "latitude", "longitude", "device_sn",
+  cols <- c("date_time", "date", "time", "location_name", "location_id", "EA_ID", "latitude", "longitude", "device_sn",
             "surveyor",  "lab", "sample_ID", "source")
 
   df_cols <- colnames(df)

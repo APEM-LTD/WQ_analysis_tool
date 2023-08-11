@@ -197,7 +197,7 @@ metadata <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
   na.omit(.data)    # Skip blank rows due to formulae.
 
 standards <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
-                             sheet = "STANDARDS")   # Loads STANDARDS tab with details of WFD boundaries)
+                                sheet = "STANDARDS")   # Loads STANDARDS tab with details of WFD boundaries)
 
 ## ERROR CHECK for specified parameters
 allowed_params <- params$parameter
@@ -237,14 +237,16 @@ if(is.null(SITES) == FALSE){
   ea_wq_data <- ea_wq_data %>%
     dplyr::left_join(params, by = c("det_label" = "WIMS_headers")) %>%
     dplyr::select(c(wq_site_id, date, parameter, det_id, result, unit, qualifier)) %>%
-    dplyr::rename(location_name = wq_site_id)
+    dplyr::rename(EA_ID = wq_site_id)
   
   # Restructure
   ea_wq_data <- ea_wq_data %>%
-    tidyr::pivot_wider(id_cols = c(location_name, date),
+    tidyr::pivot_wider(id_cols = c(EA_ID, date),
                        names_from = parameter,
                        values_from = result) %>%
-    dplyr::mutate(source = "EA_DATA")
+    dplyr::mutate(source = "EA_DATA") %>%
+    dplyr::left_join(metadata) %>%
+    dplyr::select(!c(location_id, wb_type, altitude))
   
 } else {
   ea_wq_data <- readr::read_csv("Data/wq_data_blank.csv")
@@ -278,7 +280,7 @@ merge <- restructure_wq_data(merge)
 
 
 ### Extract parameter names for later use
-param_names <- names(merge)[13:ncol(merge)]
+param_names <- names(merge)[14:ncol(merge)]
 
 ### Pivot long
 merge <- merge %>%
@@ -290,9 +292,6 @@ merge <- merge %>%
 full_data <- merge %>%
   dplyr::left_join(metadata, by = "location_name") %>%
   dplyr::left_join(standards)
-
-### Reorder columns
-#full_data <- full_data
 
 ```
 
@@ -384,6 +383,8 @@ if (nrow(lod_tab_data) > 0) {
 
 ```
 
+# Summary statistics
+
 The table below summarises results that are outwith the limit of detection (LOD):
 
 **`r LOD_tab`**
@@ -402,7 +403,8 @@ summary_1 <- full_data %>%
                                           any(parameter == "pH")      ~ quantile(result, 0.05, na.rm = TRUE),
                                           any(parameter == "BOD")     ~ quantile(result, 0.9, na.rm = TRUE),
                                           any(parameter == "amm_N")   ~ quantile(result, 0.9, na.rm = TRUE),
-                                          .default = NA_integer_)
+                                          .default = NA_integer_),
+                   src = "All data"
                    ) %>%
   dplyr::ungroup()
 
@@ -419,9 +421,60 @@ summary_2 <- full_data %>%
                                           any(parameter == "pH")      ~ quantile(result, 0.05, na.rm = TRUE),
                                           any(parameter == "BOD")     ~ quantile(result, 0.9, na.rm = TRUE),
                                           any(parameter == "amm_N")   ~ quantile(result, 0.9, na.rm = TRUE),
-                                          .default = NA_integer_)
+                                          .default = NA_integer_),
+                   src = "Outliers removed"
                    ) %>%
   dplyr::ungroup()
 
+### Combine for reporting
+summary_tab_data <- summary_1 %>%
+  dplyr::rows_append(summary_2) %>%
+  dplyr::mutate(across(c(mn, sd, min, max, percentile), ~ round(., digits = 2)))
+
+colnames(summary_tab_data) <- c("Location", "Parameter", "Mean", "SD", "Min", "Max", "Percentiles", "Source")
+
+summary_tab <- DT::datatable(summary_tab_data, extensions = "Buttons", 
+                                     options = list(
+                                       pageLength = length(param_names) * length(unique(summary_tab_data$Location)),
+                                       dom = 'Bfrtip',
+                                       buttons = c('copy', 'csv', 'excel')))
+
+### Merge result back to main data
+### format
+summary_1 <- summary_1 %>%
+  dplyr::select(!src)
+
+summary_2 <- summary_2 %>% 
+  dplyr::rename(mn_out = mn, sd_out = sd, min_out = min, max_out = max, percentile_out = percentile) %>%
+  dplyr::select(!src)
+
+full_data <- full_data %>%
+  dplyr::left_join(summary_1) %>%
+  dplyr::left_join(summary_2)
+
 ```
 
+The table below shows summary results for all sites across all data sources (lab, field and probe data). The first page shows the results for all data except the exclusions noted above, while page 2 shows the results with the flagged outliers also excluded.
+
+`r summary_tab`
+
+
+```{r process_status}
+
+# Identify order of parameters (HIGH > POOR or POOR > HIGH)
+# Compare result to standards
+full_data <- full_data %>%
+  dplyr::mutate(status = case_when(HIGH > POOR ~ ifelse(result > HIGH, "High",
+                                                  ifelse(result < HIGH & result >= GOOD, "Good",
+                                                  ifelse(result < GOOD & result >= MODERATE, "Moderate",
+                                                  ifelse(result < MODERATE & result >= POOR, "Poor",
+                                                  ifelse(result < POOR, "Bad", "Unclassified"))))),
+                                   POOR > HIGH ~ ifelse(result > POOR, "BAD",
+                                                  ifelse(result < POOR & result >= MODERATE, "Poor",
+                                                  ifelse(result < MODERATE & result >= GOOD, "Good",
+                                                  ifelse(result < GOOD & result >= HIGH, "Good",
+                                                  ifelse(result < HIGH, "HIGH", "Unclassified"))))),
+                                   parameter == "pH" ~ ifelse(result > 6 & result < 9, "High", "Not high"),
+                                   .default = NA_character_))
+
+```
