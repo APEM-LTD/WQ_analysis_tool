@@ -111,3 +111,35 @@ restructure_wq_data <- function(df){
 
 }
 
+calculate_season <- function(df, date_col, to_factor = TRUE) {
+  ###
+  # Function to calculate season based on a date-format column
+  #
+  # args:
+  #   df (dataframe/tibble): Dataframe containing data of interest.
+  #   date_col (string): name of the column containing the dates.
+  #   to_factor (logical): whether to convert the new season column to a factor. Levels start at Spring
+  #
+  # return:
+  #   (dataframe/tibble): data frame with new column season
+  ###
+
+  if (is.character(date_col) == FALSE) {
+    stop("date_col must be specified as a string")
+  }
+
+  df <- df %>%
+    dplyr::mutate(mth = lubridate::month(date),
+                  season := ifelse(lubridate::month(!!rlang::sym(date_col)) %in% c(3, 4, 5), "Spring",
+                                  ifelse(lubridate::month(!!rlang::sym(date_col)) %in% c(6, 7, 8), "Summer",
+                                         ifelse(lubridate::month(!!rlang::sym(date_col)) %in% c(9, 10, 11), "Autumn",
+                                                ifelse(lubridate::month(!!rlang::sym(date_col)) %in% c(12, 1, 2), "Winter", "Error")))))
+
+  if (to_factor == TRUE) {
+    df <- df %>%
+      dplyr::mutate(season = factor(season, levels = c("Spring", "Summer", "Autumn", "Winter"), exclude = NA))
+  }
+
+  return(df)
+
+}
