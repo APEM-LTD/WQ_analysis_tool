@@ -20,7 +20,7 @@ editor_options:
 #
 ## Introduction
 #
-# This is the Water Quality Data Analysis System, developed by APEM Ltd. This workflow will build a  report for given site IDs and return 
+# This is the Water Quality Data Analysis System, developed by APEM Ltd. This workflow will build a  report for given site IDs and return tables showing potential data issues, summaries of the data split by site, a location map and time series charts for each location/parameter. The charts include interactive metric plots to allow individual data points to be investigated. 
 #
 ## Running the Toolbox:
 #
@@ -233,10 +233,14 @@ if(is.null(SITES) == FALSE){
       dplyr::filter(date <= END_DATE)
   }
   
+  ### Identify results outwith LOD
+  ea_wq_data<- ea_wq_data  %>%
+      dplyr::mutate(result = ifelse(is.na(qualifier) == FALSE, paste0(qualifier, result), result))
+  
   ### Update param names to match template
   ea_wq_data <- ea_wq_data %>%
     dplyr::left_join(params, by = c("det_label" = "WIMS_headers")) %>%
-    dplyr::select(c(wq_site_id, date, parameter, det_id, result, unit, qualifier)) %>%
+    dplyr::select(c(wq_site_id, date, parameter, det_id, result, units, qualifier)) %>%
     dplyr::rename(EA_ID = wq_site_id)
   
   # Restructure
@@ -262,6 +266,14 @@ for (sheet in SHEETS) {
     sheets[[sheet]] <- NULL
   } else {
     sheets[[sheet]]$source <- sheet
+    for (p in PARAMETERS){
+      if (p %in% colnames(sheets[[sheet]]) == FALSE) {
+        next
+      }
+      
+      sheets[[sheet]] <- sheets[[sheet]] %>%
+        dplyr::mutate(!!p := as.character(!!rlang::sym(p)))
+    }
   }
   
 }
@@ -291,11 +303,42 @@ merge <- merge %>%
 ### Match on metadata
 full_data <- merge %>%
   dplyr::left_join(metadata, by = "location_name") %>%
-  dplyr::left_join(standards)
+  dplyr::left_join(standards) %>%
+  dplyr::left_join(params)
 
 ```
 
 # Quality Checks
+
+## Limits of detection (LOD)
+
+```{r process_lod}
+
+### Process LOD results and export/tabulate
+full_data <- full_data %>%
+  dplyr::mutate(limit = ifelse(grepl("<", result) == TRUE | grepl(">", result) == TRUE,
+                               substr(result,regexpr("[[:digit:]]", result), nchar(result)), NA_character_),
+                limit = as.numeric(limit),
+                original_result = result,
+                result = as.numeric(result))
+
+lod_tab_data <- full_data %>%
+  dplyr::filter(is.na(limit) == FALSE) %>%
+  dplyr::select(location_name, date, source, parameter, limit)
+
+if (nrow(lod_tab_data) > 0) {
+  LOD_tab <- DT::datatable(lod_tab_data)
+} else {
+  LOD_tab <- "NA - No results outwith LOD"
+}
+
+```
+
+The table below summarises results that are outwith the limit of detection (LOD):
+
+**`r LOD_tab`**
+
+## Excluded Results
 
 ```{r qc_checks}
 
@@ -321,6 +364,8 @@ full_data <- full_data %>%
 The following results have been excluded 
 
 **`r EXCL_tab`**
+
+## Potential Outliers
 
 ```{r process_outliers}
 
@@ -361,39 +406,11 @@ The table below summarises results that have been identified as potential outlie
 
 **`r OUT_tab`**
 
-```{r process_lod}
-
-### Process LOD results and export/tabulate
-full_data <- full_data %>%
-  dplyr::mutate(limit = ifelse(grepl("<", result) == TRUE | grepl(">", result) == TRUE,
-                               substr(result,regexpr("[[:digit:]]", result), nchar(result)), NA_character_),
-                limit = as.numeric(limit),
-                original_result = result,
-                result = as.numeric(result))
-
-lod_tab_data <- full_data %>%
-  dplyr::filter(is.na(limit) == FALSE) %>%
-  dplyr::select(location_name, date, source, parameter, limit)
-
-if (nrow(lod_tab_data) > 0) {
-  LOD_tab <- DT::datatable(lod_tab_data)
-} else {
-  LOD_tab <- "NA - No results outwith LOD"
-}
-
-```
-
-# Summary statistics
-
-The table below summarises results that are outwith the limit of detection (LOD):
-
-**`r LOD_tab`**
-
 ```{r process_stats}
 
 ### Calculate summary statistics from all data and tabulate
 summary_1 <- full_data %>%
-  dplyr::group_by(location_name, parameter) %>%
+  dplyr::group_by(location_name, output_headers) %>%
   dplyr::summarise(mn = mean(result, na.rm = TRUE),
                    sd = sd(result, na.rm = TRUE),
                    min = min(result, na.rm = TRUE),
@@ -411,7 +428,7 @@ summary_1 <- full_data %>%
 ### Calculate summary statistics with outliers removed
 summary_2 <- full_data %>%
   dplyr::filter(outlier == FALSE) %>%
-  dplyr::group_by(location_name, parameter) %>%
+  dplyr::group_by(location_name, output_headers) %>%
   dplyr::summarise(mn = mean(result, na.rm = TRUE),
                    sd = sd(result, na.rm = TRUE),
                    min = min(result, na.rm = TRUE),
@@ -454,6 +471,8 @@ full_data <- full_data %>%
 
 ```
 
+# Summary
+
 The table below shows summary results for all sites across all data sources (lab, field and probe data). The first page shows the results for all data except the exclusions noted above, while page 2 shows the results with the flagged outliers also excluded.
 
 `r summary_tab`
@@ -478,3 +497,28 @@ full_data <- full_data %>%
                                    .default = NA_character_))
 
 ```
+
+# Charts
+
+## Site Location
+
+```{r map}
+
+map_data <- full_data %>%
+  dplyr::group_by(location_name) %>%
+  dplyr::summarise(lat = mean(latitude, na.rm = TRUE),
+                   lon = mean(longitude, na.rm = TRUE)) %>%
+  dplyr::ungroup()
+
+map <- leaflet() %>%
+  fitBounds(min(map_data$lon), min(map_data$lat), max(map_data$lon), max(map_data$lat)) %>%
+  addTiles() %>%
+  addPopups(lng = map_data$lon, lat = map_data$lat, map_data$location_name,
+            options = popupOptions(closeButton = FALSE))
+
+```
+
+`r map`
+
+## Time series plots
+

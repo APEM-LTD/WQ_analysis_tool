@@ -267,3 +267,10 @@ if (nrow(outliers_data) > 0) {
 } else {
   OUT_tab <- "NA - No potential outliers identified"
 }
+
+
+######
+
+p_data <- sheets[["PROBE_DATA"]]
+f_data <- sheets[["MANUAL_FIELD"]]
+l_data <- sheets[["LAB_DATA"]]
