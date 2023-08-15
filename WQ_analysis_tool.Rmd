@@ -483,16 +483,16 @@ The table below shows summary results for all sites across all data sources (lab
 # Identify order of parameters (HIGH > POOR or POOR > HIGH)
 # Compare result to standards
 full_data <- full_data %>%
-  dplyr::mutate(std_order = case_when(HIGH > POOR ~ "asc",
-                                      POOR > HIGH ~ "desc",
+  dplyr::mutate(std_order = case_when(HIGH > POOR ~ "desc",
+                                      POOR > HIGH ~ "asc",
                                       parameter == "pH" ~ "pH",
                                       .default = "none"),
-                status = case_when(std_order == "asc" ~   ifelse(result > HIGH, "High",
+                status = case_when(std_order == "desc" ~   ifelse(result > HIGH, "High",
                                                           ifelse(result < HIGH & result >= GOOD, "Good",
                                                           ifelse(result < GOOD & result >= MODERATE, "Moderate",
                                                           ifelse(result < MODERATE & result >= POOR, "Poor",
                                                           ifelse(result < POOR, "Bad", "Unclassified"))))),
-                                   std_order == "desc" ~  ifelse(result > POOR, "BAD",
+                                   std_order == "asc" ~  ifelse(result > POOR, "BAD",
                                                           ifelse(result < POOR & result >= MODERATE, "Poor",
                                                           ifelse(result < MODERATE & result >= GOOD, "Good",
                                                           ifelse(result < GOOD & result >= HIGH, "Good",
@@ -531,58 +531,81 @@ map <- leaflet() %>%
 ``` {r ts_plots}
 
 ### Add seasons
-full_data <- calculate_season(full_data, "date") %>%
-  dplyr::mutate(location_id = location_id.x,
-                location_id = NA_integer_)
+full_data <- calculate_season(full_data, "date")# %>%
+  #dplyr::mutate(location_id = location_id.x,
+  #              location_id = ifelse(is.na(location_id) == TRUE, NA_integer_, location_id))
 
 ### Loop through site/parameter combinations and plot
 for (l in unique(full_data$location_name)) {
   for (p in unique(full_data$parameter)) {
     
     chart_data <- full_data %>%
-      dplyr::filter(location_name == l & parameter == p)
+      dplyr::filter(location_name == l & parameter == p) %>%
+      dplyr::mutate(x_min_val = as.Date(paste0(as.character(lubridate::year(min(date))), "-01-01")),
+                    x_max_val = as.Date(paste0(as.character(lubridate::year(max(date))), "-12-31")))
     
-    
-    y_min_val <- min(chart_data$result, chart_data$HIGH - 10, chart_data$POOR, -10)
-    y_max_val <- max(chart_data$result, chart_data$HIGH +10, chart_data$POOR +10)
+    y_min_val = min(chart_data$result, chart_data$HIGH - 10, chart_data$POOR, -10)
+    y_max_val = max(chart_data$result, chart_data$HIGH +10, chart_data$POOR +10)
     p_name <- unique(chart_data$output_headers)
+    xbreak <- round(length(unique(chart_data$date)), digits = 0)
     
-    if (unique(chart_data$std_order == "desc")){
+    ### Charts with high status to top (higher values, higher status)
+    if (unique(chart_data$std_order == "asc")){
       chart<-ggplot(data = chart_data) +
-        geom_rect(aes(ymin = y_min_val, ymax = HIGH, xmin = -Inf, xmax = Inf), fill = '#B7DEE8', alpha = 1) +
-        geom_rect(aes(ymin = HIGH, ymax = GOOD, xmin = -Inf, xmax = Inf), fill = '#D8E4BC', alpha = 1) +
-        geom_rect(aes(ymin = GOOD, ymax = MODERATE, xmin = -Inf, xmax = Inf), fill = '#FFFF66', alpha = 1) +
-        geom_rect(aes(ymin = MODERATE, ymax = POOR, xmin = -Inf, xmax = Inf), fill = '#FFCC66', alpha = 1) +
-        geom_rect(aes(ymin = POOR, ymax = y_max_val, xmin = -Inf, xmax = Inf), fill = '#FF9999', alpha = 1) +
-        geom_point(aes(x = lubridate::year(date), y = result, shape = season)) +
+        geom_rect(aes(ymin = y_min_val, ymax = HIGH, xmin = x_min_val, xmax = x_max_val), fill = '#B7DEE8', alpha = 1) +
+        geom_rect(aes(ymin = HIGH, ymax = GOOD, xmin = x_min_val, xmax = x_max_val), fill = '#D8E4BC', alpha = 1) +
+        geom_rect(aes(ymin = GOOD, ymax = MODERATE, xmin = x_min_val, xmax = x_max_val), fill = '#FFFF66', alpha = 1) +
+        geom_rect(aes(ymin = MODERATE, ymax = POOR, xmin = x_min_val, xmax = x_max_val), fill = '#FFCC66', alpha = 1) +
+        geom_rect(aes(ymin = POOR, ymax = y_max_val, xmin = x_min_val, xmax = x_max_val), fill = '#FF9999', alpha = 1) +
+        geom_point(aes(x = as.Date(date), y = result, shape = season)) +
         scale_y_continuous(limits = c(y_min_val, y_max_val), breaks = pretty_breaks()) +
-        theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+        theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
         scale_shape_manual(values = c(3,4,1, 5)) +
         labs(y = p_name,
-             x = "") +
-        facet_grid(parameter~location_id, switch = "y", scales = "free_y")
-      ggsave(plot = chart, filename = paste0("Outputs/facet_plot_",sites,"_", m, ".png"),
-             width = 30, height = 15, units = "cm")
+             x = "Date",
+             title = paste0(l, ": ", p)) #+
+        # facet_grid(parameter~location_id, switch = "y", scales = "free_y")
+      # ggsave(plot = chart, filename = paste0("Outputs/facet_plot_",sites,"_", m, ".png"),
+      #        width = 30, height = 15, units = "cm")
     }
     
-    if(unique(chart_data$std_order == "asc")){
+    ### Charts with bad  status to top (higher values, lower status)
+    if(unique(chart_data$std_order == "desc")){
       chart<-ggplot(data = chart_data) +
-        geom_rect(aes(ymin = y_min_val, ymax = POOR, xmin = -Inf, xmax = Inf), fill = '#FF9999', alpha = 1) +
-        geom_rect(aes(ymin = POOR, ymax = MODERATE, xmin = -Inf, xmax = Inf), fill = '#FFCC66', alpha = 1) +
-        geom_rect(aes(ymin = MODERATE, ymax = GOOD, xmin = -Inf, xmax = Inf), fill = '#FFFF66', alpha = 1) +
-        geom_rect(aes(ymin = GOOD, ymax = HIGH, xmin = -Inf, xmax = Inf), fill = '#D8E4BC', alpha = 1) +
-        geom_rect(aes(ymin = HIGH, ymax = y_max_val, xmin = -Inf, xmax = Inf), fill = '#B7DEE8', alpha = 1) +
-        geom_point(aes(x = lubridate::year(date), y = result, shape = season)) +
+        geom_rect(aes(ymin = y_min_val, ymax = POOR, xmin = x_min_val, xmax = x_max_val), fill = '#FF9999', alpha = 1) +
+        geom_rect(aes(ymin = POOR, ymax = MODERATE, xmin = x_min_val, xmax = x_max_val), fill = '#FFCC66', alpha = 1) +
+        geom_rect(aes(ymin = MODERATE, ymax = GOOD, xmin = x_min_val, xmax = x_max_val), fill = '#FFFF66', alpha = 1) +
+        geom_rect(aes(ymin = GOOD, ymax = HIGH, xmin = x_min_val, xmax = x_max_val), fill = '#D8E4BC', alpha = 1) +
+        geom_rect(aes(ymin = HIGH, ymax = y_max_val, xmin = x_min_val, xmax = x_max_val), fill = '#B7DEE8', alpha = 1) +
+        geom_point(aes(x = as.Date(date), y = result, shape = season)) +
         scale_y_continuous(limits = c(y_min_val, y_max_val), breaks = pretty_breaks()) +
-        theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+        theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
         scale_shape_manual(values = c(3,4,1, 5)) +
         labs(y = p_name,
-             x = "") #+
+             x = "Date",
+             title = paste0(l, ": ", p)) #+
         #facet_grid(metric~location_ID, switch = "y", scales = "free_y")
-      ggsave(plot = chart, filename = paste0("Outputs/WQ/Charts/facet_plot_",sites,"_", m, ".png"),
-             width = 30, height = 15, units = "cm")
+      # ggsave(plot = chart, filename = paste0("Outputs/WQ/Charts/facet_plot_",sites,"_", m, ".png"),
+      #        width = 30, height = 15, units = "cm")
     }
     
+    ### pH specific chart: high status between 6 and 9
+    if(unique(chart_data$std_order == "pH")){
+      chart<-ggplot(data = chart_data) +
+        geom_rect(aes(ymin = 6, ymax = 9, xmin = x_min_val, xmax = x_max_val), fill = '#B7DEE8', alpha = 1) +
+        geom_point(aes(x = as.Date(date), y = result, shape = season)) +
+        scale_y_continuous(limits = c(0, 15), breaks = pretty_breaks()) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+        scale_shape_manual(values = c(3,4,1, 5)) +
+        labs(y = p_name,
+             x = "Date",
+             title = paste0(l, ": ", p)) #+
+        #facet_grid(metric~location_ID, switch = "y", scales = "free_y")
+      # ggsave(plot = chart, filename = paste0("Outputs/WQ/Charts/facet_plot_",sites,"_", m, ".png"),
+      #        width = 30, height = 15, units = "cm")
+    }
+    
+    ### Parameters without WFD standards
     if(unique(chart_data$std_order == "none")){
       chart<-ggplot(data = chart_data) +
         geom_point(aes(x = lubridate::year(date), y = result, shape = season)) +
@@ -590,30 +613,21 @@ for (l in unique(full_data$location_name)) {
         theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
         scale_shape_manual(values = c(3,4,1, 5)) +
         labs(y = p_name,
-             x = "") #+
+             x = "Date",
+             title = paste0(l, ": ", p)) #+
         #facet_grid(metric~location_ID, switch = "y", scales = "free_y")
-      ggsave(plot = chart, filename = paste0("Outputs/WQ/Charts/facet_plot_",sites,"_", m, ".png"),
-             width = 30, height = 15, units = "cm")
+      # ggsave(plot = chart, filename = paste0("Outputs/WQ/Charts/facet_plot_",sites,"_", m, ".png"),
+      #        width = 30, height = 15, units = "cm")
     }
     
-    if(unique(chart_data$std_order == "pH")){
-      chart<-ggplot(data = chart_data) +
-        geom_rect(aes(ymin = 6, ymax = 9, xmin = -Inf, xmax = Inf), fill = '#B7DEE8', alpha = 1) +
-        geom_point(aes(x = lubridate::year(date), y = result, shape = season)) +
-        scale_y_continuous(limits = c(0, 15), breaks = pretty_breaks()) +
-        theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
-        scale_shape_manual(values = c(3,4,1, 5)) +
-        labs(y = p_name,
-             x = "") #+
-        #facet_grid(metric~location_ID, switch = "y", scales = "free_y")
-      ggsave(plot = chart, filename = paste0("Outputs/WQ/Charts/facet_plot_",sites,"_", m, ".png"),
-             width = 30, height = 15, units = "cm")
-    }
-    
-    chart
+    print(plotly::ggplotly(chart))
     
   }
 }
 
+
+```
+
+```{r run_all}
 
 ```
