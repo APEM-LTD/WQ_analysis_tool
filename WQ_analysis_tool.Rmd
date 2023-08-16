@@ -265,14 +265,16 @@ for (sheet in SHEETS) {
   if (nrow(sheets[[sheet]]) == 0){
     sheets[[sheet]] <- NULL
   } else {
-    sheets[[sheet]]$source <- sheet
+    sheets[[sheet]] <- sheets[[sheet]] %>%
+      dplyr::mutate(source = sheet) %>%
+      dplyr::left_join(metadata)
     for (p in PARAMETERS){
       if (p %in% colnames(sheets[[sheet]]) == FALSE) {
         next
       }
       
       sheets[[sheet]] <- sheets[[sheet]] %>%
-        dplyr::mutate(!!p := as.character(!!rlang::sym(p)))
+        dplyr::mutate(!!p := as.character(!!rlang::sym(p))) 
     }
   }
   
@@ -285,6 +287,7 @@ if("PROBE_DATA" %in% names(sheets) == TRUE){
 }
 
 merge <- dplyr::bind_rows(sheets) %>%
+  #dplyr::left_join(metadata) %>%
   dplyr::bind_rows(ea_wq_data)
 
 ### Standardise columns: order, adding missing (as NA)
@@ -544,8 +547,8 @@ for (l in unique(full_data$location_name)) {
       dplyr::mutate(x_min_val = as.Date(paste0(as.character(lubridate::year(min(date))), "-01-01")),
                     x_max_val = as.Date(paste0(as.character(lubridate::year(max(date))), "-12-31")))
     
-    y_min_val = min(chart_data$result, chart_data$HIGH - 10, chart_data$POOR, -10)
-    y_max_val = max(chart_data$result, chart_data$HIGH +10, chart_data$POOR +10)
+    y_min_val <- min(chart_data$result, chart_data$HIGH - 10, chart_data$POOR, -10)
+    y_max_val <- max(chart_data$result, chart_data$HIGH +10, chart_data$POOR +10)
     p_name <- unique(chart_data$output_headers)
     xbreak <- round(length(unique(chart_data$date)), digits = 0)
     
@@ -563,7 +566,7 @@ for (l in unique(full_data$location_name)) {
         scale_shape_manual(values = c(3,4,1, 5)) +
         labs(y = p_name,
              x = "Date",
-             title = paste0(l, ": ", p)) #+
+             title = paste0(l, ": ", p_name)) #+
         # facet_grid(parameter~location_id, switch = "y", scales = "free_y")
       # ggsave(plot = chart, filename = paste0("Outputs/facet_plot_",sites,"_", m, ".png"),
       #        width = 30, height = 15, units = "cm")
@@ -583,7 +586,7 @@ for (l in unique(full_data$location_name)) {
         scale_shape_manual(values = c(3,4,1, 5)) +
         labs(y = p_name,
              x = "Date",
-             title = paste0(l, ": ", p)) #+
+             title = paste0(l, ": ", p_name)) #+
         #facet_grid(metric~location_ID, switch = "y", scales = "free_y")
       # ggsave(plot = chart, filename = paste0("Outputs/WQ/Charts/facet_plot_",sites,"_", m, ".png"),
       #        width = 30, height = 15, units = "cm")
@@ -595,11 +598,11 @@ for (l in unique(full_data$location_name)) {
         geom_rect(aes(ymin = 6, ymax = 9, xmin = x_min_val, xmax = x_max_val), fill = '#B7DEE8', alpha = 1) +
         geom_point(aes(x = as.Date(date), y = result, shape = season)) +
         scale_y_continuous(limits = c(0, 15), breaks = pretty_breaks()) +
-        theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+        theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
         scale_shape_manual(values = c(3,4,1, 5)) +
         labs(y = p_name,
              x = "Date",
-             title = paste0(l, ": ", p)) #+
+             title = paste0(l, ": ", p_name)) #+
         #facet_grid(metric~location_ID, switch = "y", scales = "free_y")
       # ggsave(plot = chart, filename = paste0("Outputs/WQ/Charts/facet_plot_",sites,"_", m, ".png"),
       #        width = 30, height = 15, units = "cm")
@@ -610,23 +613,25 @@ for (l in unique(full_data$location_name)) {
       chart<-ggplot(data = chart_data) +
         geom_point(aes(x = lubridate::year(date), y = result, shape = season)) +
         scale_y_continuous(limits = c(y_min_val, y_max_val), breaks = pretty_breaks()) +
-        theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+        theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
         scale_shape_manual(values = c(3,4,1, 5)) +
         labs(y = p_name,
              x = "Date",
-             title = paste0(l, ": ", p)) #+
+             title = paste0(l, ": ", p_name)) #+
         #facet_grid(metric~location_ID, switch = "y", scales = "free_y")
       # ggsave(plot = chart, filename = paste0("Outputs/WQ/Charts/facet_plot_",sites,"_", m, ".png"),
       #        width = 30, height = 15, units = "cm")
     }
     
-    print(plotly::ggplotly(chart))
+    print(chart)
     
   }
 }
 
 
 ```
+
+
 
 ```{r run_all}
 
