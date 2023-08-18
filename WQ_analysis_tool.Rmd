@@ -562,10 +562,10 @@ for (l in unique(full_data$location_name)) {
         geom_rect(aes(ymin = GOOD, ymax = MODERATE, xmin = x_min_val, xmax = x_max_val), fill = '#FFFF66', alpha = 1) +
         geom_rect(aes(ymin = MODERATE, ymax = POOR, xmin = x_min_val, xmax = x_max_val), fill = '#FFCC66', alpha = 1) +
         geom_rect(aes(ymin = POOR, ymax = y_max_val, xmin = x_min_val, xmax = x_max_val), fill = '#FF9999', alpha = 1) +
-        geom_point(aes(x = as.Date(date), y = result, shape = season)) +
+        geom_point(aes(x = as.Date(date), y = result, shape = source)) +
         scale_y_continuous(limits = c(y_min_val, y_max_val), breaks = pretty_breaks()) +
         theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
-        scale_shape_manual(values = c(3,4,1, 5)) +
+        scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
              x = "Date",
              title = paste0(l, ": ", p_name)) #+
@@ -582,10 +582,10 @@ for (l in unique(full_data$location_name)) {
         geom_rect(aes(ymin = MODERATE, ymax = GOOD, xmin = x_min_val, xmax = x_max_val), fill = '#FFFF66', alpha = 1) +
         geom_rect(aes(ymin = GOOD, ymax = HIGH, xmin = x_min_val, xmax = x_max_val), fill = '#D8E4BC', alpha = 1) +
         geom_rect(aes(ymin = HIGH, ymax = y_max_val, xmin = x_min_val, xmax = x_max_val), fill = '#B7DEE8', alpha = 1) +
-        geom_point(aes(x = as.Date(date), y = result, shape = season)) +
+        geom_point(aes(x = as.Date(date), y = result, shape = source)) +
         scale_y_continuous(limits = c(y_min_val, y_max_val), breaks = pretty_breaks()) +
         theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
-        scale_shape_manual(values = c(3,4,1, 5)) +
+        scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
              x = "Date",
              title = paste0(l, ": ", p_name)) #+
@@ -598,10 +598,10 @@ for (l in unique(full_data$location_name)) {
     if(unique(chart_data$std_order == "pH")){
       chart<-ggplot(data = chart_data) +
         geom_rect(aes(ymin = 6, ymax = 9, xmin = x_min_val, xmax = x_max_val), fill = '#B7DEE8', alpha = 1) +
-        geom_point(aes(x = as.Date(date), y = result, shape = season)) +
+        geom_point(aes(x = as.Date(date), y = result, shape = source)) +
         scale_y_continuous(limits = c(0, 15), breaks = pretty_breaks()) +
         theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
-        scale_shape_manual(values = c(3,4,1, 5)) +
+        scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
              x = "Date",
              title = paste0(l, ": ", p_name)) #+
@@ -613,10 +613,10 @@ for (l in unique(full_data$location_name)) {
     ### Parameters without WFD standards
     if(unique(chart_data$std_order == "none")){
       chart<-ggplot(data = chart_data) +
-        geom_point(aes(x = lubridate::year(date), y = result, shape = season)) +
+        geom_point(aes(x = lubridate::year(date), y = result, shape = source)) +
         scale_y_continuous(limits = c(y_min_val, y_max_val), breaks = pretty_breaks()) +
         theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
-        scale_shape_manual(values = c(3,4,1, 5)) +
+        scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
              x = "Date",
              title = paste0(l, ": ", p_name)) #+
@@ -659,10 +659,11 @@ for (l in unique(full_data$location_name)) {
     
     high <- unique(chart_data$HIGH)
     good <- unique(chart_data$GOOD)
-    mod <- unique(chart_data$MODERATE)
+    mod  <- unique(chart_data$MODERATE)
     poor <- unique(chart_data$POOR)
-    max <- max(c(max(chart_data$result), chart_data$HIGH + 5, chart_data$POOR + 5), na.rm = TRUE)
-    min <- min(c(min(chart_data$result), chart_data$HIGH - 5, chart_data$POOR - 5), na.rm = TRUE)
+    max  <- max(c(max(chart_data$result), chart_data$HIGH + 5, chart_data$POOR + 5), na.rm = TRUE)
+    min  <- min(c(min(chart_data$result), chart_data$HIGH - 5, chart_data$POOR - 5), na.rm = TRUE)
+    if (min < 0 ) { min <- 0 }
     p_name <- unique(chart_data$output_headers)
     
     ### Charts with high status to top (higher values, higher status)
