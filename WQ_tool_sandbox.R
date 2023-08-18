@@ -269,8 +269,84 @@ if (nrow(outliers_data) > 0) {
 }
 
 
-######
+###### using dygraphs
 
-p_data <- sheets[["PROBE_DATA"]]
-f_data <- sheets[["MANUAL_FIELD"]]
-l_data <- sheets[["LAB_DATA"]]
+library(dygraphs)
+
+### Add seasons
+full_data <- calculate_season(full_data, "date")
+
+charts <- list()
+
+### Loop through site/parameter combinations and plot
+for (l in unique(full_data$location_name)) {
+  for (p in unique(full_data$parameter)) {
+
+    chart_data <- full_data %>%
+      dplyr::filter(location_name == l & parameter == p) %>%
+      dplyr::mutate(x_min_val = as.Date(paste0(as.character(lubridate::year(min(date))), "-01-01")),
+                    x_max_val = as.Date(paste0(as.character(lubridate::year(max(date))), "-12-31"))) %>%
+      dplyr::select(date, result, output_headers, std_order, HIGH, GOOD, MODERATE, POOR)
+
+    high <- unique(chart_data$HIGH)
+    good <- unique(chart_data$GOOD)
+    mod <- unique(chart_data$MODERATE)
+    poor <- unique(chart_data$POOR)
+    max <- max(c(max(chart_data$result), chart_data$HIGH + 5, chart_data$POOR + 5), na.rm = TRUE)
+    min <- min(c(min(chart_data$result), chart_data$HIGH - 5, chart_data$POOR - 5), na.rm = TRUE)
+    p_name <- unique(chart_data$output_headers)
+
+    ### Charts with high status to top (higher values, higher status)
+    if (unique(chart_data$std_order == "asc")){
+      c <- dygraph(chart_data[, 1:2], main = paste0(l, ": ", p_name)) %>%
+        dySeries("result", strokeWidth = 0, drawPoints = TRUE, pointSize = 3) %>%
+        dyAxis("y", label = p_name, valueRange = c(min, max)) %>%
+        dyHighlight(highlightCircleSize = 5, highlightSeriesBackgroundAlpha = 0.8) %>%
+        dyShading(from = poor, to = max, axis = "y", color = "rgb(255, 153, 153)") %>%
+        dyShading(from = mod, to = poor, axis = "y", color = "rgb(255, 204, 102)") %>%
+        dyShading(from = good, to = mod, axis = "y", color = "rgb(255, 255, 102)") %>%
+        dyShading(from = high, to = good, axis = "y", color = "rgb(216, 228, 188)") %>%
+        dyShading(from = min, to = high, axis = "y", color = "rgb(183, 222, 232)") %>%
+        dyOptions(axisLineWidth = 1.5, fillGraph = FALSE, drawGrid = FALSE)
+    }
+
+    ### Charts with bad  status to top (higher values, lower status)
+    if(unique(chart_data$std_order == "desc")){
+      c <- dygraph(chart_data[, 1:2], main = paste0(l, ": ", p_name)) %>%
+        dySeries("result", strokeWidth = 0, drawPoints = TRUE, pointSize = 3) %>%
+        dyAxis("y", label = p_name, valueRange = c(min, max)) %>%
+        dyHighlight(highlightCircleSize = 5, highlightSeriesBackgroundAlpha = 0.8) %>%
+        dyShading(from = high, to = max, axis = "y", color = "rgb(183, 222, 232)") %>%
+        dyShading(from = good, to = high, axis = "y", color = "rgb(216, 228, 188)") %>%
+        dyShading(from = mod, to = good, axis = "y", color = "rgb(255, 255, 102)") %>%
+        dyShading(from = poor, to = mod, axis = "y", color = "rgb(255, 204, 102)") %>%
+        dyShading(from = min, to = poor, axis = "y", color = "rgb(255, 153, 153)") %>%
+        dyOptions(axisLineWidth = 1.5, fillGraph = FALSE, drawGrid = FALSE)
+    }
+
+    ### pH specific chart: high status between 6 and 9
+    if(unique(chart_data$std_order == "pH")){
+      c <- dygraph(chart_data[, 1:2], main = paste0(l, ": ", p_name)) %>%
+        dySeries("result", strokeWidth = 0, drawPoints = TRUE, pointSize = 3) %>%
+        dyAxis("y", label = p_name, valueRange = c(0, 15)) %>%
+        dyHighlight(highlightCircleSize = 5, highlightSeriesBackgroundAlpha = 0.8) %>%
+        dyShading(from = 6, to = 9, axis = "y", color = "rgb(183, 222, 232)") %>%
+        dyOptions(axisLineWidth = 1.5, fillGraph = FALSE, drawGrid = FALSE)
+    }
+
+    ### Parameters without WFD standards
+    if(unique(chart_data$std_order == "none")){
+      c <- dygraph(chart_data[, 1:2], main = paste0(l, ": ", p_name)) %>%
+        dySeries("result", strokeWidth = 0, drawPoints = TRUE, pointSize = 3) %>%
+        dyAxis("y", label = p_name, valueRange = c(min, max)) %>%
+        dyHighlight(highlightCircleSize = 5, highlightSeriesBackgroundAlpha = 0.8) %>%
+        dyOptions(axisLineWidth = 1.5, fillGraph = FALSE, drawGrid = FALSE)
+    }
+
+    charts <- c(charts, c)
+
+    ##https://stackoverflow.com/questions/30509866/for-loop-over-dygraph-does-not-work-in-r
+
+  }
+}
+htmltools::tagList(charts)
