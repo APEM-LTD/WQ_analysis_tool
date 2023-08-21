@@ -87,7 +87,7 @@ OUTPUT_PATH <- "Outputs/"
 if(!require(pacman)) install.packages("pacman")
 pacman::p_load(remotes, readxl, dplyr, stringr, lubridate, ggplot2, writexl, 
                tidyr, DT, rnrfa, leaflet, downloader, sf, GGally, gridextra,
-               rlang, readr, openxlsx, scales, dygraphs) # new for WQ tool
+               rlang, readr, openxlsx, scales, htmltools, dygraphs) # new for WQ tool
 
 # Conditionally install hetoolkit from github
 if ("hetoolkit" %in% installed.packages() == FALSE) {
@@ -295,7 +295,7 @@ merge <- restructure_wq_data(merge)
 
 
 ### Extract parameter names for later use
-param_names <- names(merge)[14:ncol(merge)]
+param_names <- names(merge)[16:ncol(merge)]
 
 ### Pivot long
 merge <- merge %>%
@@ -323,7 +323,8 @@ full_data <- full_data %>%
                                substr(result,regexpr("[[:digit:]]", result), nchar(result)), NA_character_),
                 limit = as.numeric(limit),
                 original_result = result,
-                result = as.numeric(result))
+                result = as.numeric(result),
+                result = ifelse(is.na(limit)==FALSE, limit * LOD_MULTIPLIER, result))
 
 lod_tab_data <- full_data %>%
   dplyr::filter(is.na(limit) == FALSE) %>%
@@ -418,12 +419,18 @@ summary_1 <- full_data %>%
                    sd = sd(result, na.rm = TRUE),
                    min = min(result, na.rm = TRUE),
                    max = max(result, na.rm = TRUE),
-                   percentile = case_when(any(parameter == "temp")    ~ quantile(result, 0.98, na.rm = TRUE),
-                                          any(parameter == "RDO_sat") ~ quantile(result, 0.1, na.rm = TRUE),
-                                          any(parameter == "pH")      ~ quantile(result, 0.05, na.rm = TRUE),
-                                          any(parameter == "BOD")     ~ quantile(result, 0.9, na.rm = TRUE),
-                                          any(parameter == "amm_N")   ~ quantile(result, 0.9, na.rm = TRUE),
+                   percentile = case_when(any(parameter == "temp")    ~ 0.98,
+                                          any(parameter == "RDO_sat") ~ 0.1,
+                                          any(parameter == "pH")      ~ 0.05,
+                                          any(parameter == "BOD")     ~ 0.9,
+                                          any(parameter == "amm_N")   ~ 0.9,
                                           .default = NA_integer_),
+                   percentile_value = case_when(any(parameter == "temp")    ~ quantile(result, 0.98, na.rm = TRUE),
+                                                any(parameter == "RDO_sat") ~ quantile(result, 0.1, na.rm = TRUE),
+                                                any(parameter == "pH")      ~ quantile(result, 0.05, na.rm = TRUE),
+                                                any(parameter == "BOD")     ~ quantile(result, 0.9, na.rm = TRUE),
+                                                any(parameter == "amm_N")   ~ quantile(result, 0.9, na.rm = TRUE),
+                                                .default = NA_integer_),
                    src = "All data"
                    ) %>%
   dplyr::ungroup()
@@ -436,12 +443,18 @@ summary_2 <- full_data %>%
                    sd = sd(result, na.rm = TRUE),
                    min = min(result, na.rm = TRUE),
                    max = max(result, na.rm = TRUE),
-                   percentile = case_when(any(parameter == "temp")    ~ quantile(result, 0.98, na.rm = TRUE),
-                                          any(parameter == "RDO_sat") ~ quantile(result, 0.1, na.rm = TRUE),
-                                          any(parameter == "pH")      ~ quantile(result, 0.05, na.rm = TRUE),
-                                          any(parameter == "BOD")     ~ quantile(result, 0.9, na.rm = TRUE),
-                                          any(parameter == "amm_N")   ~ quantile(result, 0.9, na.rm = TRUE),
+                   percentile = case_when(any(parameter == "temp")    ~ 0.98,
+                                          any(parameter == "RDO_sat") ~ 0.1,
+                                          any(parameter == "pH")      ~ 0.05,
+                                          any(parameter == "BOD")     ~ 0.9,
+                                          any(parameter == "amm_N")   ~ 0.9,
                                           .default = NA_integer_),
+                   percentile_value = case_when(any(parameter == "temp")    ~ quantile(result, 0.98, na.rm = TRUE),
+                                                any(parameter == "RDO_sat") ~ quantile(result, 0.1, na.rm = TRUE),
+                                                any(parameter == "pH")      ~ quantile(result, 0.05, na.rm = TRUE),
+                                                any(parameter == "BOD")     ~ quantile(result, 0.9, na.rm = TRUE),
+                                                any(parameter == "amm_N")   ~ quantile(result, 0.9, na.rm = TRUE),
+                                                .default = NA_integer_),
                    src = "Outliers removed"
                    ) %>%
   dplyr::ungroup()
@@ -451,7 +464,7 @@ summary_tab_data <- summary_1 %>%
   dplyr::rows_append(summary_2) %>%
   dplyr::mutate(across(c(mn, sd, min, max, percentile), ~ round(., digits = 2)))
 
-colnames(summary_tab_data) <- c("Location", "Parameter", "Mean", "SD", "Min", "Max", "Percentiles", "Source")
+colnames(summary_tab_data) <- c("Location", "Parameter", "Mean", "SD", "Min", "Max", "Percentile", "Percentile value", "Source")
 
 summary_tab <- DT::datatable(summary_tab_data, extensions = "Buttons", 
                                      options = list(
@@ -613,7 +626,7 @@ for (l in unique(full_data$location_name)) {
     ### Parameters without WFD standards
     if(unique(chart_data$std_order == "none")){
       chart<-ggplot(data = chart_data) +
-        geom_point(aes(x = lubridate::year(date), y = result, shape = source)) +
+        geom_point(aes(x = as.Date(date), y = result, shape = source)) +
         scale_y_continuous(limits = c(y_min_val, y_max_val), breaks = pretty_breaks()) +
         theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
         scale_shape_manual(values = c(3,4,1,5)) +
@@ -637,7 +650,7 @@ htmltools::tagList(charts)
 
 ```
 
-
+## Time series plots alternative
 
 ```{r ts_plots_dy, out.width = "100%"}
 
@@ -721,5 +734,16 @@ for (l in unique(full_data$location_name)) {
 }
 
 htmltools::tagList(charts)
+
+```
+
+```{r data_export}
+
+wb <- openxlsx::buildWorkbook(list(sheets[["PROBE_DATA"]], sheets[["LAB_DATA"]], sheets[["MANUAL_FIELD"]], lod_tab_data, exclusions_data, outliers_data, summary_tab_data, full_data))
+names(wb) <- c("PROBE_DATA", "LAB_DATA", "MANUAL_FIELD", "OUTWITH_LOD", "EXCLUSIONS", "OUTLIERS", "SUMMARY", "FULL_DATA")
+openxlsx::conditionalFormatting(wb, "FULL_DATA", cols = 17, rows = 2:nrow(full_data)+1,
+                                rule = "$AF1<>''",
+                                style = createStyle(fontColour = "#0070C0"))
+saveWorkbook(wb, "test.xlsx", overwrite = TRUE)
 
 ```
