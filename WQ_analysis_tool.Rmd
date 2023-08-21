@@ -531,7 +531,7 @@ map <- leaflet() %>%
 
 ## Time series plots
 
-``` {r ts_plots}
+``` {r ts_plots, out.width = "80%"}
 
 ### Add seasons
 full_data <- calculate_season(full_data, "date")
@@ -625,7 +625,8 @@ for (l in unique(full_data$location_name)) {
       #        width = 30, height = 15, units = "cm")
     }
     
-    c <- plotly::ggplotly(chart)
+    c <- plotly::ggplotly(chart) %>%
+      layout(autosize = FALSE, width = 800, margin = list(l = 50, r = 50, b = 110, t = 110, pad = 4))
     charts[[counter]] <- c
     counter <- counter + 1
     
@@ -638,7 +639,7 @@ htmltools::tagList(charts)
 
 
 
-```{r ts_plots_dy}
+```{r ts_plots_dy, out.width = "100%"}
 
 ### Add seasons
 full_data <- calculate_season(full_data, "date")
