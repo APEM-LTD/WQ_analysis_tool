@@ -1,6 +1,10 @@
-############################# IsDate Function ###################################
-# Copied from hetoolkit
+############################# CONSTANTS ###################################
 
+ALLOWED_PARAMS <- c("temp", "RDO_sat", "pH", "BOD", "orthoP", "amm_N", "nitrate")
+
+############################# FUNCTIONS ###################################
+
+# Copied from hetoolkit
 IsDate <- function(x, date.format = NULL) {
   # Check if field is a date using as.Date that looks for unambiguous dates
   #   Assumes date format so NA returned not Character error.
@@ -105,7 +109,8 @@ restructure_wq_data <- function(df){
   params <- df_cols[df_cols %in% cols == FALSE]
 
   df <- df %>%
-    dplyr::select(c(all_of(cols), any_of(params)))
+    dplyr::select(c(all_of(cols), any_of(params))) %>%
+    dplyr::mutate(across(all_of(params), as.character))
 
   return(df)
 

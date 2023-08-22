@@ -66,9 +66,14 @@ END_DATE <- NULL
 # Specify the parameters to be analysed.
 PARAMETERS <- "All"
 
-# Specify all water quality site ID, both EA and APEM, for analysis, in quotes.
-# Data in tables and plots in the output report will match the order specified below.
-SITES <- "All" 
+# Specify all APEM water quality location names to be imported from the template in the form: c("Site1", "site2").
+# Use "All" (the default) to import all data from the template.
+APEM_SITES <- "All" 
+
+# Specify all EA WIMS site IDs for which data should be downloaded in the form: c("WIMS1", "WIMS2").
+# Use "All" (the default) to import data for all sites within the import template with a corresponding WIMS ID.
+# If EA data is not required, use NULL
+EA_SITES <- "All"
 
 # Specify a multiplier to be used for handing chemistry results outwith the LOD. Must be between 0 and 1.
 # The LOD will be multiplied by this value to generate dummy results.
@@ -161,6 +166,13 @@ if((is.null(START_DATE) == FALSE && as.Date(START_DATE) < as.Date("2000-01-01"))
   print("NOTE: EA data is not availble from the WQA database before year 2000")
 }
 
+## Valid parameters specified
+if (PARAMETERS != "All"){
+  check_names(PARAMETERS, ALLOWED_PARAMS)
+} else {
+  PARAMETERS <- ALLOWED_PARAMS
+}
+
 ## LOD multiplier is numeric
 if(is.numeric(LOD_MULTIPLIER) == FALSE){
   stop("LOD multiplier must be numeric")
@@ -175,8 +187,10 @@ if(LOD_MULTIPLIER < 0 || LOD_MULTIPLIER > 1) {
 
 User-specified settings:  
 
- * Input template path: **`r TEMPLATE_PATH`**  
+ * Import template file: **`r TEMPLATE_PATH`**  
  * Source sheets to import: **`r SHEETS`**  
+ * APEM sites to import: **`r APEM_SITES`** 
+ * EA Sites to import: **`r EA_SITES`**
  * Start date: **`r SDATE`** 
  * End date: **`r EDATE`** 
  * Parameters of interest: **`r PARAMETERS`**  
@@ -203,26 +217,26 @@ desc <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
                                 sheet = "OUTPUT_SHEETS")   # Loads OUTPUT_SHEETS tab with details of exported data)
 
 ## ERROR CHECK for specified parameters
-allowed_params <- params$parameter
-if (PARAMETERS != "All"){
-  check_names(PARAMETERS, allowed_params)
-} else {
-  PARAMETERS <- allowed_params
-}
+# allowed_params <- params$parameter
+# if (PARAMETERS != "All"){
+#   check_names(PARAMETERS, allowed_params)
+# } else {
+#   PARAMETERS <- allowed_params
+# }
 
 ```
 
 ```{r ea_import}
 
 ## AUTO-IMPORT EA DATA
-if(is.null(SITES) == FALSE){
+if(is.null(EA_SITES) == FALSE){
   
-  if ("All" %in% SITES) {
-    SITES <- unique(metadata$EA_ID)
-  }
+  if ("All" %in% EA_SITES) {
+    EA_SITES <- unique(metadata$EA_ID)
+  } 
   
   # Pull all data for sites
-  ea_wq_data <- hetoolkit::import_wq(sites = SITES,
+  ea_wq_data <- hetoolkit::import_wq(sites = EA_SITES,
                                      dets = c(61, 76, 85, 111, 117, 180, 9901)) # fixed for specified WFD parameters
   
   # filter by dates
@@ -263,6 +277,10 @@ if(is.null(SITES) == FALSE){
 
 ```{r merge}
 
+if ("All" %in% APEM_SITES) {
+  APEM_SITES <- unique(metadata$location_name)
+} 
+
 # Drop empty sheets or add source variable
 for (sheet in SHEETS) {
   if (nrow(sheets[[sheet]]) == 0){
@@ -270,7 +288,8 @@ for (sheet in SHEETS) {
   } else {
     sheets[[sheet]] <- sheets[[sheet]] %>%
       dplyr::mutate(source = sheet) %>%
-      dplyr::left_join(metadata)
+      dplyr::left_join(metadata) %>%
+      dplyr::filter(location_name %in% APEM_SITES)
     for (p in PARAMETERS){
       if (p %in% colnames(sheets[[sheet]]) == FALSE) {
         next
@@ -296,15 +315,13 @@ merge <- dplyr::bind_rows(sheets) %>%
 ### Standardise columns: order, adding missing (as NA)
 merge <- restructure_wq_data(merge)
 
-
-### Extract parameter names for later use
-param_names <- names(merge)[16:ncol(merge)]
-
 ### Pivot long
+param_names <- names(merge)[16:ncol(merge)]
 merge <- merge %>%
   tidyr::pivot_longer(cols = all_of(param_names),
                       names_to = "parameter",
-                      values_to = "result")
+                      values_to = "result") %>%
+  dplyr::filter(parameter %in% PARAMETERS)
 
 ### Match on metadata
 full_data <- merge %>%
@@ -380,7 +397,7 @@ full_data <- full_data %>%
   dplyr::mutate(outlier = FALSE)
 
 for (l in unique(full_data$location_name)){
-  for (p in param_names) {
+  for (p in PARAMETERS) {
     temp <- full_data %>%
       dplyr::filter(parameter == p & location_name == l)
 
@@ -471,7 +488,7 @@ colnames(summary_tab_data) <- c("Location", "Parameter", "Mean", "SD", "Min", "M
 
 summary_tab <- DT::datatable(summary_tab_data, extensions = "Buttons", 
                                      options = list(
-                                       pageLength = length(param_names) * length(unique(summary_tab_data$Location)),
+                                       pageLength = length(PARAMETERS) * length(unique(summary_tab_data$Location)),
                                        dom = 'Bfrtip',
                                        buttons = c('copy', 'csv', 'excel')))
 
