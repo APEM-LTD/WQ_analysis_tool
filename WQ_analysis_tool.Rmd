@@ -741,8 +741,8 @@ htmltools::tagList(charts)
 
 wb <- openxlsx::buildWorkbook(list(sheets[["PROBE_DATA"]], sheets[["LAB_DATA"]], sheets[["MANUAL_FIELD"]], lod_tab_data, exclusions_data, outliers_data, summary_tab_data, full_data))
 names(wb) <- c("PROBE_DATA", "LAB_DATA", "MANUAL_FIELD", "OUTWITH_LOD", "EXCLUSIONS", "OUTLIERS", "SUMMARY", "FULL_DATA")
-openxlsx::conditionalFormatting(wb, "FULL_DATA", cols = 17, rows = 2:nrow(full_data)+1,
-                                rule = "$AF1<>''",
+openxlsx::conditionalFormatting(wb, "FULL_DATA", cols = 17, rows = 0:nrow(full_data)+1,
+                                rule = 'AND($AF1<>"", $AF1<>"limit")',
                                 style = createStyle(fontColour = "#0070C0"))
 saveWorkbook(wb, "test.xlsx", overwrite = TRUE)
 
