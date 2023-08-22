@@ -199,6 +199,9 @@ metadata <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
 standards <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
                                 sheet = "STANDARDS")   # Loads STANDARDS tab with details of WFD boundaries)
 
+desc <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
+                                sheet = "OUTPUT_SHEETS")   # Loads OUTPUT_SHEETS tab with details of exported data)
+
 ## ERROR CHECK for specified parameters
 allowed_params <- params$parameter
 if (PARAMETERS != "All"){
@@ -739,11 +742,24 @@ htmltools::tagList(charts)
 
 ```{r data_export}
 
-wb <- openxlsx::buildWorkbook(list(sheets[["PROBE_DATA"]], sheets[["LAB_DATA"]], sheets[["MANUAL_FIELD"]], lod_tab_data, exclusions_data, outliers_data, summary_tab_data, full_data))
-names(wb) <- c("PROBE_DATA", "LAB_DATA", "MANUAL_FIELD", "OUTWITH_LOD", "EXCLUSIONS", "OUTLIERS", "SUMMARY", "FULL_DATA")
+### List of sheets to include in output
+if (exists("ea_wq_data") == FALSE) {
+  ea_wq_data <- NULL
+}
+
+wb <- openxlsx::buildWorkbook(list(sheets[["PROBE_DATA"]], sheets[["LAB_DATA"]], sheets[["MANUAL_FIELD"]], ea_wq_data, lod_tab_data, exclusions_data, outliers_data, summary_tab_data, full_data, desc))
+
+### Apply sheet names
+names(wb) <- c("PROBE_DATA", "LAB_DATA", "MANUAL_FIELD", "EA_DATA", "OUTWITH_LOD", "EXCLUSIONS", "OUTLIERS", "SUMMARY", "FULL_DATA", "DESCRIPTION")
+
+### Conditional formatting
 openxlsx::conditionalFormatting(wb, "FULL_DATA", cols = 17, rows = 0:nrow(full_data)+1,
                                 rule = 'AND($AF1<>"", $AF1<>"limit")',
                                 style = createStyle(fontColour = "#0070C0"))
-saveWorkbook(wb, "test.xlsx", overwrite = TRUE)
+
+### Export
+filename <- paste0("Output/WQ_analysis_data_", as.character(Sys.Date()), ".xlsx")
+
+openxlsx::saveWorkbook(wb, file = filename, overwrite = TRUE)
 
 ```
