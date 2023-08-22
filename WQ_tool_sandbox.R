@@ -273,10 +273,17 @@ if (nrow(outliers_data) > 0) {
 
 library(dygraphs)
 
+
+## Time series plots alternative
+
+```{r ts_plots_dy, out.width = "100%"}
+
 ### Add seasons
 full_data <- calculate_season(full_data, "date")
 
+### Set up for loop
 charts <- list()
+counter <- 1
 
 ### Loop through site/parameter combinations and plot
 for (l in unique(full_data$location_name)) {
@@ -290,10 +297,11 @@ for (l in unique(full_data$location_name)) {
 
     high <- unique(chart_data$HIGH)
     good <- unique(chart_data$GOOD)
-    mod <- unique(chart_data$MODERATE)
+    mod  <- unique(chart_data$MODERATE)
     poor <- unique(chart_data$POOR)
-    max <- max(c(max(chart_data$result), chart_data$HIGH + 5, chart_data$POOR + 5), na.rm = TRUE)
-    min <- min(c(min(chart_data$result), chart_data$HIGH - 5, chart_data$POOR - 5), na.rm = TRUE)
+    max  <- max(c(max(chart_data$result), chart_data$HIGH + 5, chart_data$POOR + 5), na.rm = TRUE)
+    min  <- min(c(min(chart_data$result), chart_data$HIGH - 5, chart_data$POOR - 5), na.rm = TRUE)
+    if (min < 0 ) { min <- 0 }
     p_name <- unique(chart_data$output_headers)
 
     ### Charts with high status to top (higher values, higher status)
@@ -343,10 +351,12 @@ for (l in unique(full_data$location_name)) {
         dyOptions(axisLineWidth = 1.5, fillGraph = FALSE, drawGrid = FALSE)
     }
 
-    charts <- c(charts, c)
-
-    ##https://stackoverflow.com/questions/30509866/for-loop-over-dygraph-does-not-work-in-r
+    charts[[counter]] <- c
+    counter <- counter + 1
 
   }
 }
+
 htmltools::tagList(charts)
+
+```
