@@ -305,7 +305,8 @@ for (sheet in SHEETS) {
 ## Process probe data
 if("PROBE_DATA" %in% names(sheets) == TRUE){
   sheets[["PROBE_DATA"]] <- extract_date_time(sheets[["PROBE_DATA"]], "date_time")
-  sheets[["PROBE_DATA"]]$time <- strptime(sheets[["PROBE_DATA"]]$time, format = "%H:%M")
+  #sheets[["PROBE_DATA"]]$time <- strptime(sheets[["PROBE_DATA"]]$time, format = "%H:%M")
+  sheets[["PROBE_DATA"]]$time <- as.POSIXct(paste0("1899-12-31 ", sheets[["PROBE_DATA"]]$time_str))
 }
 
 merge <- dplyr::bind_rows(sheets) %>%

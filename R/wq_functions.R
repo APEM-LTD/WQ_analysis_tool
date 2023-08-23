@@ -73,7 +73,7 @@ extract_date_time <- function(df, dt_var="date_time"){
                   hour_temp = lubridate::hour(datetime_temp),
                   min_temp = lubridate::minute(datetime_temp),
                   date = lubridate::date(datetime_temp),
-                  time = paste(hour_temp, min_temp, sep = ":")) %>%
+                  time_str = paste(hour_temp, min_temp, sep = ":")) %>%
     dplyr::select(!c(datetime_temp, hour_temp, min_temp))
 
 
