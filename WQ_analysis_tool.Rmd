@@ -267,7 +267,7 @@ if(is.null(EA_SITES) == FALSE){
                        values_from = result) %>%
     dplyr::mutate(source = "EA_DATA") %>%
     dplyr::left_join(metadata) %>%
-    dplyr::select(!c(location_id, wb_type, altitude))
+    dplyr::select(!c(EA_ID, location_id, wb_type, altitude))
   
 } else {
   ea_wq_data <- readr::read_csv("Data/wq_data_blank.csv")
@@ -288,7 +288,7 @@ for (sheet in SHEETS) {
   } else {
     sheets[[sheet]] <- sheets[[sheet]] %>%
       dplyr::mutate(source = sheet) %>%
-      dplyr::left_join(metadata) %>%
+      #dplyr::left_join(metadata) %>%
       dplyr::filter(location_name %in% APEM_SITES)
     for (p in PARAMETERS){
       if (p %in% colnames(sheets[[sheet]]) == FALSE) {
@@ -305,7 +305,6 @@ for (sheet in SHEETS) {
 ## Process probe data
 if("PROBE_DATA" %in% names(sheets) == TRUE){
   sheets[["PROBE_DATA"]] <- extract_date_time(sheets[["PROBE_DATA"]], "date_time")
-  #sheets[["PROBE_DATA"]]$time <- strptime(sheets[["PROBE_DATA"]]$time, format = "%H:%M")
   sheets[["PROBE_DATA"]]$time <- as.POSIXct(paste0("1899-12-31 ", sheets[["PROBE_DATA"]]$time_str))
 }
 
@@ -317,7 +316,7 @@ merge <- dplyr::bind_rows(sheets) %>%
 merge <- restructure_wq_data(merge)
 
 ### Pivot long
-param_names <- names(merge)[16:ncol(merge)]
+param_names <- names(merge)[14:ncol(merge)]
 merge <- merge %>%
   tidyr::pivot_longer(cols = all_of(param_names),
                       names_to = "parameter",
@@ -349,7 +348,9 @@ full_data <- full_data %>%
 
 lod_tab_data <- full_data %>%
   dplyr::filter(is.na(limit) == FALSE) %>%
-  dplyr::select(location_name, date, source, parameter, limit)
+  dplyr::select(location_name, date, source, output_headers, limit)
+
+colnames(lod_tab_data) <- c("Location", "Date", "Data source", "Parameter (units)", "LOD")
 
 if (nrow(lod_tab_data) > 0) {
   LOD_tab <- DT::datatable(lod_tab_data)
@@ -373,7 +374,9 @@ full_data <- full_data %>%
 
 exclusions_data <- full_data %>%
   dplyr::filter(exclude) %>%
-  dplyr::select(location_name, date, source, parameter, result)
+  dplyr::select(location_name, date, source, output_headers, result)
+
+colnames(exclusions_data) <- c("Location", "Date", "Data source", "Parameter (units)", "Excluded result")
 
 if (nrow(exclusions_data) > 0) {
   EXCL_tab <- DT::datatable(exclusions_data)
@@ -417,7 +420,9 @@ for (l in unique(full_data$location_name)){
 
 outliers_data <- full_data %>%
   dplyr::filter(outlier) %>%
-  dplyr::select(location_name, date, source, parameter, result)
+  dplyr::select(location_name, date, source, output_headers, result)
+
+colnames(outliers_data) <- c("Location", "Date", "Data source", "Parameter (units)", "Result")
 
 if (nrow(outliers_data) > 0) {
   OUT_tab <- DT::datatable(outliers_data)
