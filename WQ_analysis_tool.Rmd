@@ -260,6 +260,9 @@ if(is.null(EA_SITES) == FALSE){
     dplyr::select(c(wq_site_id, date, parameter, det_id, result, units, qualifier)) %>%
     dplyr::rename(EA_ID = wq_site_id)
   
+  # Get sampling point details (need lat/long in particular)
+  ea_site_info <- get_wq_site_info(ea_wq_data, "EA_ID")
+  
   # Restructure
   ea_wq_data <- ea_wq_data %>%
     tidyr::pivot_wider(id_cols = c(EA_ID, date),

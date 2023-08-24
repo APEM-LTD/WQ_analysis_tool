@@ -360,3 +360,54 @@ for (l in unique(full_data$location_name)) {
 htmltools::tagList(charts)
 
 ```
+
+
+#### WIMS additional query
+
+get_wq_site_info <- function(df, id_var){
+  ###
+  # Function to query WIMS and return details of EA sampling points.
+  # https://environment.data.gov.uk/water-quality/view/doc/reference#api-summary
+  #
+  # args:
+  #   df (dataframe/tibble): Dataframe containing WIMS site IDs.
+  #   id_var (string): the name of the variable containing WIMS site IDs.
+  #
+  # return:
+  #   (dataframe/tibble): Dataframe with WIMS sampling point details. `@id` and `comment` columns are dropped
+  #                       `notation` column is renamed to match id_var
+  ###
+
+  site_info <- df %>%
+    dplyr::mutate(dummy = 1) %>%
+    dplyr::group_by(dummy) %>%
+    dplyr::summarise(query_suffix = paste0(unique(eval(as.name(id_var))), collapse = "&notation=")) %>%
+    dplyr::ungroup() %>%
+    dplyr::mutate(query_prefix = "https://environment.data.gov.uk/water-quality/id/sampling-point.csv?notation=",
+                  query = paste0(query_prefix, query_suffix)) %>%
+    dplyr::select(query)
+
+  downloader::download(site_info$query,
+                       destfile = "WQ_SAMPLE_POINT_DOWNLOAD.csv",
+                       mode = 'wb')
+
+  col_types <- readr::cols()
+  #)
+
+  # readcsv
+  data <- readr::read_csv("WQ_SAMPLE_POINT_DOWNLOAD.csv",
+                          col_types = col_types)
+
+  data <- data %>%
+    dplyr::select(-"@id", comment) %>%
+    dplyr::rename(!!id_var := notation)
+
+  return(data)
+
+}
+
+
+site_info <- get_wq_site_info(ea_wq_data, "EA_ID")
+
+df <- ea_wq_data
+id_var <- "EA_ID"
