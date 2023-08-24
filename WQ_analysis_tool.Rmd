@@ -595,11 +595,12 @@ charts <- list()
 counter <- 1
 
 ### Loop through site/parameter combinations and plot
-for (l in unique(full_data$location_name)) {
+#for (l in unique(full_data$location_name)) {
   for (p in unique(full_data$parameter)) {
     
     chart_data <- full_data %>%
-      dplyr::filter(location_name == l & parameter == p) %>%
+      #dplyr::filter(location_name == l & parameter == p) %>%
+      dplyr::filter(parameter == p) %>%
       dplyr::mutate(x_min_val = as.Date(paste0(as.character(lubridate::year(min(date))), "-01-01")),
                     x_max_val = as.Date(paste0(as.character(lubridate::year(max(date))), "-12-31")))
     
@@ -622,8 +623,8 @@ for (l in unique(full_data$location_name)) {
         scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
              x = "Date",
-             title = paste0(l, ": ", p_name)) #+
-        # facet_grid(parameter~location_id, switch = "y", scales = "free_y")
+             title = paste0(l, ": ", p_name)) +
+        facet_grid(parameter~location_name, switch = "y", scales = "free_y")
       # ggsave(plot = chart, filename = paste0("Outputs/facet_plot_",sites,"_", m, ".png"),
       #        width = 30, height = 15, units = "cm")
     }
@@ -642,8 +643,8 @@ for (l in unique(full_data$location_name)) {
         scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
              x = "Date",
-             title = paste0(l, ": ", p_name)) #+
-        #facet_grid(metric~location_ID, switch = "y", scales = "free_y")
+             title = paste0(l, ": ", p_name)) +
+        facet_grid(parameter~location_name, switch = "y", scales = "free_y")
       # ggsave(plot = chart, filename = paste0("Outputs/WQ/Charts/facet_plot_",sites,"_", m, ".png"),
       #        width = 30, height = 15, units = "cm")
     }
@@ -658,8 +659,8 @@ for (l in unique(full_data$location_name)) {
         scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
              x = "Date",
-             title = paste0(l, ": ", p_name)) #+
-        #facet_grid(metric~location_ID, switch = "y", scales = "free_y")
+             title = paste0(l, ": ", p_name)) +
+        facet_grid(parameter~location_name, switch = "y", scales = "free_y")
       # ggsave(plot = chart, filename = paste0("Outputs/WQ/Charts/facet_plot_",sites,"_", m, ".png"),
       #        width = 30, height = 15, units = "cm")
     }
@@ -673,8 +674,8 @@ for (l in unique(full_data$location_name)) {
         scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
              x = "Date",
-             title = paste0(l, ": ", p_name)) #+
-        #facet_grid(metric~location_ID, switch = "y", scales = "free_y")
+             title = paste0(l, ": ", p_name)) +
+        facet_grid(parameter~location_name, switch = "y", scales = "free_y")
       # ggsave(plot = chart, filename = paste0("Outputs/WQ/Charts/facet_plot_",sites,"_", m, ".png"),
       #        width = 30, height = 15, units = "cm")
     }
@@ -685,7 +686,7 @@ for (l in unique(full_data$location_name)) {
     counter <- counter + 1
     
   }
-}
+#}
 
 htmltools::tagList(charts)
 
