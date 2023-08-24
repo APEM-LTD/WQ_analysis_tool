@@ -44,7 +44,7 @@ rm(list = ls())
 
 ```
 
-# SETTINGS
+# Settings
 
 ```{r settings}
 
@@ -559,6 +559,18 @@ map_data <- full_data %>%
   dplyr::summarise(lat = mean(latitude, na.rm = TRUE),
                    lon = mean(longitude, na.rm = TRUE)) %>%
   dplyr::ungroup()
+
+# if (exists("ea_site_info") == TRUE) {
+#   ea_map_data <- ea_site_info %>%
+#     dplyr::group_by(EA_ID) %>%
+#     dplyr::summarise(lat = mean(lat, na.rm = TRUE),
+#                      lon = mean(long, na.rm = TRUE)) %>%
+#     dplyr::ungroup() %>%
+#     dplyr::rename(location_name = EA_ID)
+#   
+#   map_data <- map_data %>%
+#     dplyr::rows_append(ea_map_data)
+# }  
 
 ### Generate map
 map <- leaflet() %>%
