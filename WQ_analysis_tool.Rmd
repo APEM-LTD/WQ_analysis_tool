@@ -454,11 +454,11 @@ summary_1 <- full_data %>%
                                           any(parameter == "BOD")     ~ 0.9,
                                           any(parameter == "amm_N")   ~ 0.9,
                                           .default = NA_integer_),
-                   percentile_value = case_when(any(parameter == "temp")    ~ quantile(result, 0.98, na.rm = TRUE),
-                                                any(parameter == "RDO_sat") ~ quantile(result, 0.1, na.rm = TRUE),
-                                                any(parameter == "pH")      ~ quantile(result, 0.05, na.rm = TRUE),
-                                                any(parameter == "BOD")     ~ quantile(result, 0.9, na.rm = TRUE),
-                                                any(parameter == "amm_N")   ~ quantile(result, 0.9, na.rm = TRUE),
+                   percentile_value = case_when(any(parameter == "temp")    ~ mn + (TEMP_Z * sd),
+                                                any(parameter == "RDO_sat") ~ mn + (DO_Z * sd),
+                                                any(parameter == "pH")      ~ mn + (PH_Z * sd),
+                                                any(parameter == "BOD")     ~ exp(log(mn/(sqrt(1+((sd**sd)/(mn*mn))))) + (BOD_Z * sqrt(log(1+((sd*sd)/(mn*mn)))))),
+                                                any(parameter == "amm_N")   ~ exp(log(mn/(sqrt(1+((sd**sd)/(mn*mn))))) + (AMM_Z * sqrt(log(1+((sd*sd)/(mn*mn)))))),
                                                 .default = NA_integer_),
                    src = "All data"
                    ) %>%
@@ -478,11 +478,11 @@ summary_2 <- full_data %>%
                                           any(parameter == "BOD")     ~ 0.9,
                                           any(parameter == "amm_N")   ~ 0.9,
                                           .default = NA_integer_),
-                   percentile_value = case_when(any(parameter == "temp")    ~ quantile(result, 0.98, na.rm = TRUE),
-                                                any(parameter == "RDO_sat") ~ quantile(result, 0.1, na.rm = TRUE),
-                                                any(parameter == "pH")      ~ quantile(result, 0.05, na.rm = TRUE),
-                                                any(parameter == "BOD")     ~ quantile(result, 0.9, na.rm = TRUE),
-                                                any(parameter == "amm_N")   ~ quantile(result, 0.9, na.rm = TRUE),
+                   percentile_value = case_when(any(parameter == "temp")    ~ mn + (TEMP_Z * sd),
+                                                any(parameter == "RDO_sat") ~ mn + (DO_Z * sd),
+                                                any(parameter == "pH")      ~ mn + (PH_Z * sd),
+                                                any(parameter == "BOD")     ~ exp(log(mn/(sqrt(1+((sd**sd)/(mn*mn))))) + (BOD_Z * sqrt(log(1+((sd*sd)/(mn*mn)))))),
+                                                any(parameter == "amm_N")   ~ exp(log(mn/(sqrt(1+((sd**sd)/(mn*mn))))) + (AMM_Z * sqrt(log(1+((sd*sd)/(mn*mn)))))),
                                                 .default = NA_integer_),
                    src = "Outliers removed"
                    ) %>%
@@ -491,7 +491,7 @@ summary_2 <- full_data %>%
 ### Combine for reporting
 summary_tab_data <- summary_1 %>%
   dplyr::rows_append(summary_2) %>%
-  dplyr::mutate(across(c(mn, sd, min, max, percentile), ~ round(., digits = 2)))
+  dplyr::mutate(across(c(mn, sd, min, max, percentile, percentile_value), ~ round(., digits = 2)))
 
 colnames(summary_tab_data) <- c("Location", "Parameter", "Mean", "SD", "Min", "Max", "Percentile", "Percentile value", "Source")
 

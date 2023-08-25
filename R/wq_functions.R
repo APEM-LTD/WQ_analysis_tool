@@ -2,6 +2,13 @@
 
 ALLOWED_PARAMS <- c("temp", "RDO_sat", "pH", "BOD", "orthoP", "amm_N", "nitrate")
 
+TEMP_Z <- 2.0537
+DO_Z <- -1.2816
+PH_Z <- -1.6449
+AMM_Z <- 1.2816
+BOD_Z <- 1.2816
+
+
 ############################# FUNCTIONS ###################################
 
 # Copied from hetoolkit

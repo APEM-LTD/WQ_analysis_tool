@@ -411,3 +411,11 @@ site_info <- get_wq_site_info(ea_wq_data, "EA_ID")
 
 df <- ea_wq_data
 id_var <- "EA_ID"
+
+#### Percentile calculations
+vals <- c(5.9, 1.0, 2.5, 2.6, 5.0)
+mn <- mean(vals, na.rm = TRUE)
+std <- sd(vals, na.rm = TRUE)
+
+log(mn/(sqrt(1+((std**std)/(mn*mn))))) #m
+sqrt(log(1+((std*std)/(mn*mn))))  #s
