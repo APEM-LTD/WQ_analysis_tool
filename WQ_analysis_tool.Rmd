@@ -268,7 +268,8 @@ if(is.null(EA_SITES) == FALSE){
     tidyr::pivot_wider(id_cols = c(EA_ID, date),
                        names_from = parameter,
                        values_from = result) %>%
-    dplyr::mutate(source = "EA_DATA") %>%
+    dplyr::mutate(time = as.POSIXct("1899-12-31 00:01"),
+                  source = "EA_DATA") %>%
     dplyr::left_join(metadata) %>%
     dplyr::select(!c(EA_ID, location_id, wb_type, altitude))
   
@@ -312,11 +313,17 @@ if("PROBE_DATA" %in% names(sheets) == TRUE){
 }
 
 merge <- dplyr::bind_rows(sheets) %>%
-  #dplyr::left_join(metadata) %>%
   dplyr::bind_rows(ea_wq_data)
 
 ### Standardise columns: order, adding missing (as NA)
 merge <- restructure_wq_data(merge)
+
+### Add date_time if missing 
+merge <- merge %>%
+  dplyr::mutate(date_time = ifelse(is.na(date_time), paste(as.character(date),
+                                  substr(as.character(time), 12, nchar(as.character(time))),
+                                  sep = " "), 
+                                  date_time))
 
 ### Pivot long
 param_names <- names(merge)[14:ncol(merge)]
@@ -602,23 +609,33 @@ counter <- 1
       #dplyr::filter(location_name == l & parameter == p) %>%
       dplyr::filter(parameter == p) %>%
       dplyr::mutate(x_min_val = as.Date(paste0(as.character(lubridate::year(min(date))), "-01-01")),
-                    x_max_val = as.Date(paste0(as.character(lubridate::year(max(date))), "-12-31")))
+                    x_max_val = as.Date(paste0(as.character(lubridate::year(max(date))), "-12-31")),
+                    y_min_val = min(result, HIGH - 10, POOR, -10, na.rm = TRUE),
+                    y_max_val = max(result, HIGH +10, POOR +10, na.rm = TRUE))
     
-    y_min_val <- min(chart_data$result, chart_data$HIGH - 10, chart_data$POOR, -10)
-    y_max_val <- max(chart_data$result, chart_data$HIGH +10, chart_data$POOR +10)
+    y_min_val <- min(chart_data$result, chart_data$HIGH - 10, chart_data$POOR, -10, na.rm = TRUE)
+    y_max_val <- max(chart_data$result, chart_data$HIGH +10, chart_data$POOR +10, na.rm = TRUE)
+    x_min_val <- unique(chart_data$x_min_val)
+    x_max_val <- unique(chart_data$x_max_val)
     p_name <- unique(chart_data$output_headers)
     xbreak <- round(length(unique(chart_data$date)), digits = 0)
     
     ### Charts with high status to top (higher values, higher status)
     if (unique(chart_data$std_order == "asc")){
       chart<-ggplot(data = chart_data) +
-        geom_rect(aes(ymin = y_min_val, ymax = HIGH, xmin = x_min_val, xmax = x_max_val), fill = '#B7DEE8', alpha = 1) +
-        geom_rect(aes(ymin = HIGH, ymax = GOOD, xmin = x_min_val, xmax = x_max_val), fill = '#D8E4BC', alpha = 1) +
-        geom_rect(aes(ymin = GOOD, ymax = MODERATE, xmin = x_min_val, xmax = x_max_val), fill = '#FFFF66', alpha = 1) +
-        geom_rect(aes(ymin = MODERATE, ymax = POOR, xmin = x_min_val, xmax = x_max_val), fill = '#FFCC66', alpha = 1) +
-        geom_rect(aes(ymin = POOR, ymax = y_max_val, xmin = x_min_val, xmax = x_max_val), fill = '#FF9999', alpha = 1) +
+        geom_rect(data = subset(chart_data, main_trib == "tributary")[1,], aes(fill = main_trib, xmin = x_min_val, xmax = x_max_val, ymin = y_min_val, ymax = y_max_val), fill = "#D9D9D9", alpha = 0.5) +
+        # geom_rect(aes(ymin = y_min_val, ymax = HIGH, xmin = x_min_val, xmax = x_max_val), fill = '#B7DEE8', alpha = 1) +
+        # geom_rect(aes(ymin = HIGH, ymax = GOOD, xmin = x_min_val, xmax = x_max_val), fill = '#D8E4BC', alpha = 1) +
+        # geom_rect(aes(ymin = GOOD, ymax = MODERATE, xmin = x_min_val, xmax = x_max_val), fill = '#FFFF66', alpha = 1) +
+        # geom_rect(aes(ymin = MODERATE, ymax = POOR, xmin = x_min_val, xmax = x_max_val), fill = '#FFCC66', alpha = 1) +
+        # geom_rect(aes(ymin = POOR, ymax = y_max_val, xmin = x_min_val, xmax = x_max_val), fill = '#FF9999', alpha = 1) +
+        geom_hline(aes(yintercept = HIGH), colour = '#B7DEE8', linetype = 2, linewidth = 1.2) +
+        geom_hline(aes(yintercept = GOOD), colour = '#D8E4BC', linetype = 2, linewidth = 1.2) +
+        geom_hline(aes(yintercept = MODERATE), colour = '#FFFF66', linetype = 2, linewidth = 1.2) +
+        geom_hline(aes(yintercept = POOR), colour = '#FFCC66', linetype = 2, linewidth = 1.2) +
         geom_point(aes(x = as.Date(date), y = result, shape = source)) +
         scale_y_continuous(limits = c(y_min_val, y_max_val), breaks = pretty_breaks()) +
+        theme_bw() +
         theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
         scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
@@ -632,6 +649,7 @@ counter <- 1
     ### Charts with bad  status to top (higher values, lower status)
     if(unique(chart_data$std_order == "desc")){
       chart<-ggplot(data = chart_data) +
+        geom_rect(data = subset(chart_data, main_trib == "tributary")[1,], aes(fill = main_trib, xmin = x_min_val, xmax = x_max_val, ymin = -Inf, ymax = Inf), fill = "grey", alpha = 0.5) +
         geom_rect(aes(ymin = y_min_val, ymax = POOR, xmin = x_min_val, xmax = x_max_val), fill = '#FF9999', alpha = 1) +
         geom_rect(aes(ymin = POOR, ymax = MODERATE, xmin = x_min_val, xmax = x_max_val), fill = '#FFCC66', alpha = 1) +
         geom_rect(aes(ymin = MODERATE, ymax = GOOD, xmin = x_min_val, xmax = x_max_val), fill = '#FFFF66', alpha = 1) +
@@ -652,6 +670,7 @@ counter <- 1
     ### pH specific chart: high status between 6 and 9
     if(unique(chart_data$std_order == "pH")){
       chart<-ggplot(data = chart_data) +
+        geom_rect(data = subset(chart_data, main_trib == "tributary")[1,], aes(fill = main_trib, xmin = x_min_val, xmax = x_max_val, ymin = 0, ymax = 15), fill = "grey", alpha = 0.5) +
         geom_rect(aes(ymin = 6, ymax = 9, xmin = x_min_val, xmax = x_max_val), fill = '#B7DEE8', alpha = 1) +
         geom_point(aes(x = as.Date(date), y = result, shape = source)) +
         scale_y_continuous(limits = c(0, 15), breaks = pretty_breaks()) +
@@ -668,6 +687,7 @@ counter <- 1
     ### Parameters without WFD standards
     if(unique(chart_data$std_order == "none")){
       chart<-ggplot(data = chart_data) +
+        geom_rect(data = subset(chart_data, main_trib == "tributary")[1,], aes(fill = main_trib, xmin = x_min_val, xmax = x_max_val, ymin = y_min_val, ymax = y_max_val), fill = "grey", alpha = 0.5) +
         geom_point(aes(x = as.Date(date), y = result, shape = source)) +
         scale_y_continuous(limits = c(y_min_val, y_max_val), breaks = pretty_breaks()) +
         theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
@@ -692,6 +712,14 @@ htmltools::tagList(charts)
 
 ```
 
+```{r wide_table}
+
+wide_output <- full_data %>%
+  dplyr::select(c(date_time, location_name, source, output_headers, original_result)) %>%
+  tidyr::pivot_wider(names_from = output_headers, values_from = original_result)
+
+```
+
 ```{r data_export}
 
 ### List of sheets to include in output
@@ -699,15 +727,23 @@ if (exists("ea_wq_data") == FALSE) {
   ea_wq_data <- NULL
 }
 
-wb <- openxlsx::buildWorkbook(list(sheets[["PROBE_DATA"]], sheets[["LAB_DATA"]], sheets[["MANUAL_FIELD"]], ea_wq_data, lod_tab_data, exclusions_data, outliers_data, summary_tab_data, full_data, desc))
+wb <- openxlsx::buildWorkbook(list(sheets[["PROBE_DATA"]], sheets[["LAB_DATA"]], sheets[["MANUAL_FIELD"]], ea_wq_data, lod_tab_data, exclusions_data, outliers_data, summary_tab_data, full_data, wide_output, desc))
 
 ### Apply sheet names
-names(wb) <- c("PROBE_DATA", "LAB_DATA", "MANUAL_FIELD", "EA_DATA", "OUTWITH_LOD", "EXCLUSIONS", "OUTLIERS", "SUMMARY", "FULL_DATA", "DESCRIPTION")
+names(wb) <- c("PROBE_DATA", "LAB_DATA", "MANUAL_FIELD", "EA_DATA", "OUTWITH_LOD", "EXCLUSIONS", "OUTLIERS", "SUMMARY", "FULL_DATA", "WIDE_FORMAT", "DESCRIPTION")
 
 ### Conditional formatting
 openxlsx::conditionalFormatting(wb, "FULL_DATA", cols = 17, rows = 0:nrow(full_data)+1,
                                 rule = 'AND($AF1<>"", $AF1<>"limit")',
                                 style = createStyle(fontColour = "#0070C0"))
+
+openxlsx::conditionalFormatting(wb, "WIDE_FORMAT", cols = 4:ncol(wide_output), rows = 0:nrow(wide_output)+1,
+                                rule = '=LEFT(D1, 1) = "<"',
+                                style = createStyle(fontColour = "#0070C0"))
+
+openxlsx::conditionalFormatting(wb, "WIDE_FORMAT", cols = 4:ncol(wide_output), rows = 0:nrow(wide_output)+1,
+                                rule = '=LEFT(D1, 1) = ">"',
+                                style = createStyle(fontColour = "#F79646"))
 
 ### Export
 filename <- paste0("Output/WQ_analysis_data_", as.character(Sys.Date()), ".xlsx")
