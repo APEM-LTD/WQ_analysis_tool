@@ -2,6 +2,10 @@
 
 ALLOWED_PARAMS <- c("temp", "RDO_sat", "pH", "BOD", "orthoP", "amm_N", "nitrate")
 
+SUMM_ROW_NAMES <- c("Site ID", "Data source(s)","First sample date", "Last sample date", "Latitude", "Longitude",
+             "Total samples","BOD samples", "DO samples", "Ammoniacal N samples", "Nitrate samples",
+             "Orthophosphate samples", "pH samples", "Temperature samples")
+
 TEMP_Z <- 2.0537
 DO_Z <- -1.2816
 PH_Z <- -1.6449

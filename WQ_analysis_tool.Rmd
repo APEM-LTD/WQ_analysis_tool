@@ -341,6 +341,55 @@ full_data <- merge %>%
 
 ```
 
+# Data Summary
+
+```{r data_summary}
+
+param_summ <- full_data %>%
+  dplyr::group_by(location_name, parameter) %>%
+  dplyr::summarise(n_samples = n()) %>%
+  dplyr::ungroup() %>%
+  tidyr::pivot_wider(names_from = parameter, values_from = n_samples)
+
+# Update text
+report_table <- full_data %>%
+  dplyr::mutate(src = case_when(source == "EA_DATA" ~ "EA",
+                                source == "MANUAL_FIELD" ~ "Field",
+                                source == "LAB_DATA" ~ "Lab",
+                                source == "PROBE_DATA" ~ "Probe"))
+
+report_table <- report_table %>%
+  dplyr::group_by(location_name) %>%
+  dplyr::summarise(
+    source = paste(unique(src), collapse = ", "),
+    min_date = as.character(min(date, na.rm = TRUE)),
+    max_date = as.character(max(date, na.rm = TRUE)),
+    lat = round(mean(latitude, na.rm = TRUE), 5),
+    lon = round(mean(longitude, na.rm = TRUE), 5),
+    samples = n()
+  ) %>%
+  dplyr::ungroup()
+  
+report_table <- report_table %>%
+  dplyr::left_join(param_summ, by = "location_name")
+  
+### Restructure
+report_table_t <- data.table::transpose(report_table, make.names = 1)
+rownames(report_table_t) <- SUMM_ROW_NAMES[2:length(SUMM_ROW_NAMES)]
+
+### Output table
+report_table_output <- DT::datatable(report_table_t, extensions = "Buttons", 
+                                     options = list(
+                                       pageLength = nrow(report_table_t),
+                                       dom = 'Brti',
+                                       buttons = c('copy', 'csv', 'excel')))
+
+```
+
+The following table summarises the available data:
+
+`r report_table_output`
+
 # Quality Checks
 
 ## Limits of detection (LOD)
@@ -611,10 +660,11 @@ counter <- 1
       dplyr::mutate(x_min_val = as.Date(paste0(as.character(lubridate::year(min(date))), "-01-01")),
                     x_max_val = as.Date(paste0(as.character(lubridate::year(max(date))), "-12-31")),
                     y_min_val = min(result, HIGH - 10, POOR, -10, na.rm = TRUE),
+                    y_min_val = ifelse(y_min_val < 0, 0, y_min_val),
                     y_max_val = max(result, HIGH +10, POOR +10, na.rm = TRUE))
     
-    y_min_val <- min(chart_data$result, chart_data$HIGH - 10, chart_data$POOR, -10, na.rm = TRUE)
-    y_max_val <- max(chart_data$result, chart_data$HIGH +10, chart_data$POOR +10, na.rm = TRUE)
+    y_min_val <- min(chart_data$y_min_val)
+    y_max_val <- max(chart_data$y_max_val)
     x_min_val <- unique(chart_data$x_min_val)
     x_max_val <- unique(chart_data$x_max_val)
     p_name <- unique(chart_data$output_headers)
@@ -716,9 +766,18 @@ htmltools::tagList(charts)
 
 ```{r wide_table}
 
+### Restructure full data for reporting.
 wide_output <- full_data %>%
   dplyr::select(c(date_time, location_name, source, output_headers, original_result)) %>%
   tidyr::pivot_wider(names_from = output_headers, values_from = original_result)
+
+### Restructure summary table for reporting.
+wide_summary <- summary_tab_data %>%
+  tidyr::pivot_longer(cols = c(Mean, SD, Min, Max, Percentile, "Percentile value"),
+                      names_to = "metric",
+                      values_to = "value") %>%
+  tidyr::pivot_wider(names_from = Parameter, values_from = value) %>%
+  dplyr::arrange(Source, Location)
 
 ```
 
@@ -729,10 +788,10 @@ if (exists("ea_wq_data") == FALSE) {
   ea_wq_data <- NULL
 }
 
-wb <- openxlsx::buildWorkbook(list(sheets[["PROBE_DATA"]], sheets[["LAB_DATA"]], sheets[["MANUAL_FIELD"]], ea_wq_data, lod_tab_data, exclusions_data, outliers_data, summary_tab_data, full_data, wide_output, desc))
+wb <- openxlsx::buildWorkbook(list(sheets[["PROBE_DATA"]], sheets[["LAB_DATA"]], sheets[["MANUAL_FIELD"]], ea_wq_data, lod_tab_data, exclusions_data, outliers_data, summary_tab_data, full_data, wide_output, wide_summary, desc))
 
 ### Apply sheet names
-names(wb) <- c("PROBE_DATA", "LAB_DATA", "MANUAL_FIELD", "EA_DATA", "OUTWITH_LOD", "EXCLUSIONS", "OUTLIERS", "SUMMARY", "FULL_DATA", "WIDE_FORMAT", "DESCRIPTION")
+names(wb) <- c("PROBE_DATA", "LAB_DATA", "MANUAL_FIELD", "EA_DATA", "OUTWITH_LOD", "EXCLUSIONS", "OUTLIERS", "SUMMARY", "FULL_DATA", "WIDE_FORMAT", "WIDE_FORMAT_SUMMARY", "DESCRIPTION")
 
 ### Conditional formatting
 openxlsx::conditionalFormatting(wb, "FULL_DATA", cols = 17, rows = 0:nrow(full_data)+1,
