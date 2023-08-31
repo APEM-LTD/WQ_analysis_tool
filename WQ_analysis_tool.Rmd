@@ -261,11 +261,14 @@ if(is.null(EA_SITES) == FALSE){
     dplyr::rename(EA_ID = wq_site_id)
   
   # Get sampling point details (need lat/long in particular)
-  ea_site_info <- get_wq_site_info(ea_wq_data, "EA_ID")
+  ea_site_info <- get_wq_site_info(ea_wq_data, "EA_ID") %>%
+    dplyr::select(c(EA_ID, lat, long)) %>%
+    dplyr::rename(latitude = lat, longitude = long)
   
   # Restructure
   ea_wq_data <- ea_wq_data %>%
-    tidyr::pivot_wider(id_cols = c(EA_ID, date),
+    dplyr::left_join(ea_site_info) %>%
+    tidyr::pivot_wider(id_cols = c(EA_ID, latitude, longitude, date),
                        names_from = parameter,
                        values_from = result) %>%
     dplyr::mutate(time = as.POSIXct("1899-12-31 00:01"),
@@ -371,7 +374,9 @@ report_table <- report_table %>%
   dplyr::ungroup()
   
 report_table <- report_table %>%
-  dplyr::left_join(param_summ, by = "location_name")
+  dplyr::left_join(param_summ, by = "location_name") %>%
+  dplyr::mutate(location_name = factor(location_name, levels = APEM_SITES)) %>%
+  dplyr::arrange(location_name)
   
 ### Restructure
 report_table_t <- data.table::transpose(report_table, make.names = 1)

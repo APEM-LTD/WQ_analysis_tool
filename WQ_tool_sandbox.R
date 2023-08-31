@@ -419,3 +419,59 @@ std <- sd(vals, na.rm = TRUE)
 
 log(mn/(sqrt(1+((std**std)/(mn*mn))))) #m
 sqrt(log(1+((std*std)/(mn*mn))))  #s
+
+#### distance difference
+library(geosphere)
+
+distances <- full_data %>%
+  dplyr::group_by(location_name, source) %>%
+  dplyr::summarise(long = mean(longitude),
+                   lat = mean(latitude)) %>%
+  dplyr::ungroup()
+
+loc_src <- paste(distances$location_name, distances$source, sep = "_")
+
+dm <- geosphere::distm(distances[3:4])
+colnames(dm) <- loc_src
+rownames(dm) <- loc_src
+
+x <- 1
+for (l in unique(full_data$location_name)) {
+
+  temp <- dm[grepl(l, rownames(dm)),grepl(l, colnames(dm))]
+  colnames(temp) <- substr(colnames(temp), nchar(l) + 2, nchar(colnames(temp)))
+
+  if (x == 1) {
+    dists <- temp
+    x <- 0
+  } else {
+    dists <- rbind(dists, temp)
+  }
+}
+
+dist <- as.data.frame(dists)
+dist$loc_src <- rownames(dist)
+rownames(dist) <- NULL
+
+dist <- dist %>%
+  dplyr::mutate(location_name = substr(loc_src, 0, regexpr("_", loc_src)-1),
+                source = substr(loc_src,regexpr("_", loc_src)+1, nchar(loc_src)))
+
+distances <- dplyr::left_join(distances, dist) %>%
+  dplyr::select(c(location_name, source, lat, long, EA_DATA, LAB_DATA, MANUAL_FIELD, PROBE_DATA))
+
+distances <- distances %>%
+  dplyr::mutate(across(where(is.numeric), \(x) round(x, digits = 3)),
+                across(c("EA_DATA", "LAB_DATA", "MANUAL_FIELD", "PROBE_DATA"), \(x) x/1000))
+
+### Output table
+distances_output <- DT::datatable(distances, extensions = "Buttons",
+                                  options = list(
+                                    pageLength = nrow(distances),
+                                    dom = 'Brti',
+                                    buttons = c('copy', 'csv', 'excel')))
+
+# Format table: loop - needs additional columns for each source if > 100m, then each column formatted individually.
+distances_output <- distances_output %>%
+  formatStyle(c("EA_DATA", "LAB_DATA", "MANUAL_FIELD", "PROBE_DATA"),
+              backgroundColor = styleEqual(c(1,0), c("red", "white")))
