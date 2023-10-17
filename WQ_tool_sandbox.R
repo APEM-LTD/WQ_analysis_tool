@@ -420,6 +420,7 @@ std <- sd(vals, na.rm = TRUE)
 log(mn/(sqrt(1+((std**std)/(mn*mn))))) #m
 sqrt(log(1+((std*std)/(mn*mn))))  #s
 
+
 #### distance difference
 library(geosphere)
 

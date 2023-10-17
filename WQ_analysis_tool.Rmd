@@ -82,6 +82,11 @@ LOD_MULTIPLIER <- 0.5
 # Specify a folder to save output files to
 OUTPUT_PATH <- "Outputs/"
 
+# Specify style for time series plots
+# line = WFD levels are delimted by coloured, dashed lines. Use this option if tributary rivers need to be highlighted
+# block = WFD levels are delimted by coloured blocks. This option means tributary rivers cannot be highlighted.
+CHART_TYPE <- "line"
+
 ```
 
 ```{r libraries}
@@ -127,6 +132,9 @@ if(is.null(END_DATE) == TRUE) {
 } else {
   EDATE <- as.character(END_DATE)
 }
+
+# Convert chart type to lower case
+CHART_TYPE <- stringr::str_to_lower(CHART_TYPE)
 
 ```
 
@@ -181,6 +189,11 @@ if(is.numeric(LOD_MULTIPLIER) == FALSE){
 ## LOD multiplier within valid range
 if(LOD_MULTIPLIER < 0 || LOD_MULTIPLIER > 1) {
   stop("LOD multiplier must be between 0 and 1")
+}
+
+## Chart type is valid
+if (CHART_TYPE %in% c("line", "block") == FALSE) {
+  stop("The chart type must be either 'line' or 'block'.")
 }
 
 ```
