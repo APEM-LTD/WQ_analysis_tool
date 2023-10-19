@@ -64,6 +64,7 @@ START_DATE <- NULL
 END_DATE <- NULL
 
 # Specify the parameters to be analysed.
+# Use "All" (the default) to import all available parameters.
 PARAMETERS <- "All"
 
 # Specify all APEM water quality location names to be imported from the template in the form: c("Site1", "site2").
@@ -82,10 +83,10 @@ LOD_MULTIPLIER <- 0.5
 # Specify a folder to save output files to
 OUTPUT_PATH <- "Outputs/"
 
-# Specify style for time series plots
-# line = WFD levels are delimted by coloured, dashed lines. Use this option if tributary rivers need to be highlighted
-# block = WFD levels are delimted by coloured blocks. This option means tributary rivers cannot be highlighted.
-CHART_TYPE <- "line"
+# Specify style for time series plots. The available options are:
+# "line"  = WFD levels are delimited by coloured, dashed lines. Use this option if tributary rivers need to be highlighted
+# "block" = WFD levels are delimited by coloured blocks. Tributary rivers cannot be highlighted.
+CHART_TYPE <- "block"
 
 ```
 
@@ -97,7 +98,7 @@ CHART_TYPE <- "line"
 if(!require(pacman)) install.packages("pacman")
 pacman::p_load(remotes, readxl, dplyr, stringr, lubridate, ggplot2, writexl, 
                tidyr, DT, rnrfa, leaflet, downloader, sf, GGally, gridextra,
-               rlang, readr, openxlsx, scales, htmltools, dygraphs) # new for WQ tool
+               rlang, readr, openxlsx, scales, htmltools, dygraphs, ggh4x) # new for WQ tool
 
 # Conditionally install hetoolkit from github
 if ("hetoolkit" %in% installed.packages() == FALSE) {
@@ -220,8 +221,8 @@ params <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
                              sheet = "PARAMETERS")   # Loads PARAMETERS tab with details of column headers
 
 metadata <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
-                             sheet = "METADATA") %>%   # Loads PARAMETERS tab with details of column headers)
-  na.omit(.data)    # Skip blank rows due to formulae.
+                             sheet = "METADATA") %>%    # Loads PARAMETERS tab with details of column headers)
+  dplyr::filter(!(if_any(c(location_name, location_id, wb_type, altitude, main_trib),is.na)))
 
 standards <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
                                 sheet = "STANDARDS")   # Loads STANDARDS tab with details of WFD boundaries)
@@ -592,7 +593,7 @@ full_data <- full_data %>%
 
 # Summary results
 
-The table below shows summary results for all sites across all data sources (lab, field and probe data). The first page shows the results for all data except the exclusions noted in section 2.2, while page 2 shows the results with the potential outliers shown in section 2.3 also excluded.
+The table below shows summary results for all sites across all data sources (lab, field and probe data). The first page shows the results for all data except the exclusions noted in section 3.2, while page 2 shows the results with the potential outliers shown in section 3.3 also excluded.
 
 `r summary_tab`
 
@@ -679,7 +680,8 @@ counter <- 1
                     x_max_val = as.Date(paste0(as.character(lubridate::year(max(date))), "-12-31")),
                     y_min_val = min(result, HIGH - 10, POOR, -10, na.rm = TRUE),
                     y_min_val = ifelse(y_min_val < 0, 0, y_min_val),
-                    y_max_val = max(result, HIGH +10, POOR +10, na.rm = TRUE))
+                    y_max_val = max(result, HIGH +10, POOR +10, na.rm = TRUE),
+                    feature = factor(feature, levels = c("Upstream", "Downstream")))
     
     y_min_val <- min(chart_data$y_min_val)
     y_max_val <- max(chart_data$y_max_val)
@@ -710,10 +712,7 @@ counter <- 1
         labs(y = p_name,
              x = "Date",
              shape = "Data source",
-             title = paste0(l, ": ", p_name)) +
-        facet_grid(parameter~location_name, switch = "y", scales = "free_y")
-      # ggsave(plot = chart, filename = paste0("Outputs/facet_plot_",sites,"_", m, ".png"),
-      #        width = 30, height = 15, units = "cm")
+             title = paste0(l, ": ", p_name))
     }
     
     ### Charts with bad  status to top (higher values, lower status)
@@ -736,10 +735,7 @@ counter <- 1
         scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
              x = "Date",
-             title = paste0(l, ": ", p_name)) +
-        facet_grid(parameter~location_name, switch = "y", scales = "free_y")
-      # ggsave(plot = chart, filename = paste0("Outputs/WQ/Charts/facet_plot_",sites,"_", m, ".png"),
-      #        width = 30, height = 15, units = "cm")
+             title = paste0(l, ": ", p_name))
     }
     
     ### pH specific chart: high status between 6 and 9
@@ -755,10 +751,7 @@ counter <- 1
         scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
              x = "Date",
-             title = paste0(l, ": ", p_name)) +
-        facet_grid(parameter~location_name, switch = "y", scales = "free_y")
-      # ggsave(plot = chart, filename = paste0("Outputs/WQ/Charts/facet_plot_",sites,"_", m, ".png"),
-      #        width = 30, height = 15, units = "cm")
+             title = paste0(l, ": ", p_name))
     }
     
     ### Parameters without WFD standards
@@ -771,11 +764,17 @@ counter <- 1
         scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
              x = "Date",
-             title = paste0(l, ": ", p_name)) +
-        facet_grid(parameter~location_name, switch = "y", scales = "free_y")
-      # ggsave(plot = chart, filename = paste0("Outputs/WQ/Charts/facet_plot_",sites,"_", m, ".png"),
-      #        width = 30, height = 15, units = "cm")
+             title = paste0(l, ": ", p_name))
     }
+    
+    if(sum(is.na(chart_data$feature)) == 0) {
+      chart <- chart + facet_nested(parameter~feature+location_name, switch = "y", scales = "free_y")
+    } else {
+      chart <- chart + facet_grid(parameter~location_name, switch = "y", scales = "free_y")
+    }
+    
+    ggsave(plot = chart, filename = paste0("Output/facet_plot_",p,"_", as.character(Sys.Date()), ".png"),
+           width = 30, height = 15, units = "cm")
     
     c <- plotly::ggplotly(chart) %>%
       layout(autosize = FALSE, width = 800, margin = list(l = 50, r = 50, b = 110, t = 110, pad = 4))
