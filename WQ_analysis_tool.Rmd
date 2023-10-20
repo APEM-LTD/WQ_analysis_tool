@@ -86,7 +86,7 @@ OUTPUT_PATH <- "Outputs/"
 # Specify style for time series plots. The available options are:
 # "line"  = WFD levels are delimited by coloured, dashed lines. Use this option if tributary rivers need to be highlighted
 # "block" = WFD levels are delimited by coloured blocks. Tributary rivers cannot be highlighted.
-CHART_TYPE <- "block"
+CHART_TYPE <- "line"
 
 ```
 
@@ -712,7 +712,7 @@ counter <- 1
         labs(y = p_name,
              x = "Date",
              shape = "Data source",
-             title = paste0(l, ": ", p_name))
+             title = p_name)
     }
     
     ### Charts with bad  status to top (higher values, lower status)
@@ -723,7 +723,7 @@ counter <- 1
         {if(CHART_TYPE == "block")geom_rect(aes(ymin = MODERATE, ymax = GOOD, xmin = x_min_val, xmax = x_max_val), fill = '#FFFF66', alpha = 1)} +
         {if(CHART_TYPE == "block")geom_rect(aes(ymin = GOOD, ymax = HIGH, xmin = x_min_val, xmax = x_max_val), fill = '#D8E4BC', alpha = 1)} +
         {if(CHART_TYPE == "block")geom_rect(aes(ymin = HIGH, ymax = y_max_val, xmin = x_min_val, xmax = x_max_val), fill = '#B7DEE8', alpha = 1)} +
-        {if(CHART_TYPE == "line")geom_rect(data = subset(chart_data, main_trib == "tributary")[1,], aes(fill = main_trib, xmin = x_min_val, xmax = x_max_val, ymin = -Inf, ymax = Inf), fill = "grey", alpha = 0.5)} +
+        {if(CHART_TYPE == "line")geom_rect(data = subset(chart_data, main_trib == "tributary")[1,], aes(fill = "#D9D9D9", xmin = x_min_val, xmax = x_max_val, ymin = y_min_val, ymax = y_max_val),  alpha = 0.5)} +
         {if(CHART_TYPE == "line")geom_hline(aes(yintercept = POOR), colour = '#FFCC66', linetype = 2, linewidth = 1.2)} +
         {if(CHART_TYPE == "line")geom_hline(aes(yintercept = MODERATE), colour = '#FFFF66', linetype = 2, linewidth = 1.2)} +
         {if(CHART_TYPE == "line")geom_hline(aes(yintercept = GOOD), colour = '#D8E4BC', linetype = 2, linewidth = 1.2)} +
@@ -731,11 +731,12 @@ counter <- 1
         geom_point(aes(x = as.Date(date), y = result, shape = source)) +
         scale_y_continuous(limits = c(y_min_val, y_max_val), breaks = pretty_breaks()) +
         {if(CHART_TYPE == "line")scale_fill_manual(values="#D9D9D9", labels=c("Tributary river"), name = "")} +
+        theme_bw() +
         theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
         scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
              x = "Date",
-             title = paste0(l, ": ", p_name))
+             title = p_name)
     }
     
     ### pH specific chart: high status between 6 and 9
@@ -747,24 +748,28 @@ counter <- 1
         {if(CHART_TYPE == "block")geom_rect(aes(ymin = 6, ymax = 9, xmin = x_min_val, xmax = x_max_val), fill = '#B7DEE8', alpha = 1)} +
         geom_point(aes(x = as.Date(date), y = result, shape = source)) +
         scale_y_continuous(limits = c(0, 15), breaks = pretty_breaks()) +
+        {if(CHART_TYPE == "line")scale_fill_manual(values="#D9D9D9", labels=c("Tributary river"), name = "")} +
+        theme_bw() +
         theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
         scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
              x = "Date",
-             title = paste0(l, ": ", p_name))
+             title = p_name)
     }
     
     ### Parameters without WFD standards
     if(unique(chart_data$std_order == "none")){
       chart<-ggplot(data = chart_data) +
-        geom_rect(data = subset(chart_data, main_trib == "tributary")[1,], aes(fill = main_trib, xmin = x_min_val, xmax = x_max_val, ymin = y_min_val, ymax = y_max_val), fill = "grey", alpha = 0.5) +
+        {if(CHART_TYPE == "line")geom_rect(data = subset(chart_data, main_trib == "tributary")[1,], aes(fill = "#D9D9D9", xmin = x_min_val, xmax = x_max_val, ymin = y_min_val, ymax = y_max_val),  alpha = 0.5)} +
         geom_point(aes(x = as.Date(date), y = result, shape = source)) +
         scale_y_continuous(limits = c(y_min_val, y_max_val), breaks = pretty_breaks()) +
+        {if(CHART_TYPE == "line")scale_fill_manual(values="#D9D9D9", labels=c("Tributary river"), name = "")} +
+        theme_bw() +
         theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
         scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
              x = "Date",
-             title = paste0(l, ": ", p_name))
+             title = p_name)
     }
     
     if(sum(is.na(chart_data$feature)) == 0) {
