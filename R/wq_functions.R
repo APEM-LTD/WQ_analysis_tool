@@ -203,3 +203,42 @@ get_wq_site_info <- function(df, id_var){
   return(data)
 
 }
+
+plotly_legends <- function(chart) {
+  ###
+  # Function to remove duplicate legend entries in interactive plots generated
+  #    by plotly::ggplotly()
+  #    Code copied and adapted from:
+  #    https://stackoverflow.com/questions/69289623/avoid-legend-duplication-in-plotly-conversion-from-ggplot-with-facet-wrap
+  #
+  # args:
+  #   chart (plotly): A plotly chart created using plotly::ggplotly()
+  #
+  # return:
+  #   (plotly): plotly chart object with updated legend
+  ###
+
+  # Get the names of the legend entries
+  df <- data.frame(id = seq_along(chart$x$data), legend_entries = unlist(lapply(chart$x$data, `[[`, "name")))
+  # Extract the group identifier
+  df$legend_group <- gsub("^\\((.*?),\\d+\\)", "\\1", df$legend_entries)
+  # Add an indicator for the first entry per group
+  df$is_first <- !duplicated(df$legend_group)
+
+  # WQ tool - specify label for grey background
+  df <- df %>%
+    dplyr::mutate(legend_group = ifelse(legend_group == "#D9D9D9", "Tributary river", legend_group))
+
+  for (i in df$id) {
+    # Is the layer the first entry of the group?
+    is_first <- df$is_first[[i]]
+    # Assign the group identifier to the name and legendgroup arguments
+    chart$x$data[[i]]$name <- df$legend_group[[i]]
+    chart$x$data[[i]]$legendgroup <- chart$x$data[[i]]$name
+    # Show the legend only for the first layer of the group
+    if (!is_first) chart$x$data[[i]]$showlegend <- FALSE
+  }
+
+  return(chart)
+
+}
