@@ -87,6 +87,8 @@ OUTPUT_PATH <- "Outputs/"
 # "line"  = WFD levels are delimited by coloured, dashed lines. Use this option if tributary rivers need to be highlighted
 # "block" = WFD levels are delimited by coloured blocks. Tributary rivers cannot be highlighted.
 CHART_TYPE <- "line"
+# On the charts, identify the source of the data
+SHOW_DATA_SOURCE <- FALSE
 
 ```
 
@@ -708,7 +710,8 @@ counter <- 1
         {if(CHART_TYPE == "line")geom_hline(aes(yintercept = GOOD), colour = '#D8E4BC', linetype = 2, linewidth = 1.2)} +
         {if(CHART_TYPE == "line")geom_hline(aes(yintercept = MODERATE), colour = '#FFFF66', linetype = 2, linewidth = 1.2)} +
         {if(CHART_TYPE == "line")geom_hline(aes(yintercept = POOR), colour = '#FFCC66', linetype = 2, linewidth = 1.2)} +
-        geom_point(aes(x = as.Date(date), y = result, shape = source_name)) +
+        {if(SHOW_DATA_SOURCE == TRUE)geom_point(aes(x = as.Date(date), y = result, shape = source_name))} +
+        {if(SHOW_DATA_SOURCE == FALSE)geom_point(aes(x = as.Date(date), y = result))} +
         scale_y_continuous(limits = c(y_min_val, y_max_val), breaks = pretty_breaks()) +
         {if(CHART_TYPE == "line")scale_fill_manual(values="#D9D9D9", labels=c("Tributary river"), name = "")} +
         theme_bw() +
@@ -733,7 +736,8 @@ counter <- 1
         {if(CHART_TYPE == "line")geom_hline(aes(yintercept = MODERATE), colour = '#FFFF66', linetype = 2, linewidth = 1.2)} +
         {if(CHART_TYPE == "line")geom_hline(aes(yintercept = GOOD), colour = '#D8E4BC', linetype = 2, linewidth = 1.2)} +
         {if(CHART_TYPE == "line")geom_hline(aes(yintercept = HIGH), colour = '#B7DEE8', linetype = 2, linewidth = 1.2)} +
-        geom_point(aes(x = as.Date(date), y = result, shape = source_name)) +
+        {if(SHOW_DATA_SOURCE == TRUE)geom_point(aes(x = as.Date(date), y = result, shape = source_name))} +
+        {if(SHOW_DATA_SOURCE == FALSE)geom_point(aes(x = as.Date(date), y = result))} +
         scale_y_continuous(limits = c(y_min_val, y_max_val), breaks = pretty_breaks()) +
         {if(CHART_TYPE == "line")scale_fill_manual(values="#D9D9D9", labels=c("Tributary river"), name = "")} +
         theme_bw() +
@@ -752,7 +756,8 @@ counter <- 1
         {if(CHART_TYPE == "line")geom_hline(aes(yintercept = 6), colour = '#B7DEE8', linetype = 2, linewidth = 1.2)} +
         {if(CHART_TYPE == "line")geom_hline(aes(yintercept = 9), colour = '#B7DEE8', linetype = 2, linewidth = 1.2)} +
         {if(CHART_TYPE == "block")geom_rect(aes(ymin = 6, ymax = 9, xmin = x_min_val, xmax = x_max_val), fill = '#B7DEE8', alpha = 1)} +
-        geom_point(aes(x = as.Date(date), y = result, shape = source_name)) +
+        {if(SHOW_DATA_SOURCE == TRUE)geom_point(aes(x = as.Date(date), y = result, shape = source_name))} +
+        {if(SHOW_DATA_SOURCE == FALSE)geom_point(aes(x = as.Date(date), y = result))} +
         scale_y_continuous(limits = c(0, 15), breaks = pretty_breaks()) +
         {if(CHART_TYPE == "line")scale_fill_manual(values="#D9D9D9", labels=c("Tributary river"), name = "")} +
         theme_bw() +
@@ -768,7 +773,8 @@ counter <- 1
     if(unique(chart_data$std_order == "none")){
       chart<-ggplot(data = chart_data) +
         {if(CHART_TYPE == "line")geom_rect(data = subset(chart_data, main_trib == "tributary")[1,], aes(fill = "#D9D9D9", xmin = x_min_val, xmax = x_max_val, ymin = y_min_val, ymax = y_max_val),  alpha = 0.5)} +
-        geom_point(aes(x = as.Date(date), y = result, shape = source_name)) +
+        {if(SHOW_DATA_SOURCE == TRUE)geom_point(aes(x = as.Date(date), y = result, shape = source_name))} +
+        {if(SHOW_DATA_SOURCE == FALSE)geom_point(aes(x = as.Date(date), y = result))} +
         scale_y_continuous(limits = c(y_min_val, y_max_val), breaks = pretty_breaks()) +
         {if(CHART_TYPE == "line")scale_fill_manual(values="#D9D9D9", labels=c("Tributary river"), name = "")} +
         theme_bw() +
