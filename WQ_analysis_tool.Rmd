@@ -687,7 +687,7 @@ counter <- 1
                     x_max_val = as.Date(paste0(as.character(lubridate::year(max(date))), "-12-31")),
                     y_min_val = min(result, HIGH - 10, POOR, -10, na.rm = TRUE),
                     y_min_val = ifelse(y_min_val < 0, 0, y_min_val),
-                    y_max_val = max(result, HIGH +10, POOR +10, na.rm = TRUE),
+                    y_max_val = max(result, HIGH * 1.1, POOR * 1.1, na.rm = TRUE),
                     feature = factor(feature, levels = c("Upstream", "Downstream")))
     
     y_min_val <- min(chart_data$y_min_val)
