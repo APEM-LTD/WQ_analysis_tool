@@ -204,6 +204,47 @@ get_wq_site_info <- function(df, id_var){
 
 }
 
+
+calc_orthop_stds <- function(df, loc_var, alk_var, alt_var){
+  ###
+  # Calculate site-specific WFD standards for orthophosphate
+  #
+  # args:
+  #   df (dataframe/tibble): Dataframe containing alkalinity and altitude data for individual sites.
+  #   loc_var (string): name of variable defining the site.
+  #   alk_var (string): name of variable containing alkalinity data
+  #   alt_var (string): name of variable containing altitude data (actual value, not just lowland/upland)
+  #
+  # return:
+  #   (dataframe/tibble): Dataframe containing location ID and orthophosphate standards in ug and mg
+  ###
+
+  VARS <- c(loc_var, alk_var, alt_var)
+
+  ortho_stds <- df %>%
+    dplyr::select(all_of(VARS)) %>%
+    dplyr::mutate(alt_used = ifelse(alt_var > 355, 355, round(alt_var)),
+                  alk_used = ifelse(!!rlang::sym(alk_var) < 2, 2, round(!!rlang::sym(alk_var))),
+                  ref_P = 10 ** (0.454*log10(alk_used) - 0.0018*alt_used + 0.476),
+                  ref_P_used = ifelse(ref_P < 7, 7, round(ref_P, 1)))
+
+  ortho_stds <- ortho_stds %>%
+    dplyr::mutate(orthoP_HIGH = round(10**((1.0497*log10(0.702) + 1.066) * (log10(ref_P_used) - log10(3500)) + log10(3500))),
+                  orthoP_GOOD = round(10**((1.0497*log10(0.532) + 1.066) * (log10(ref_P_used) - log10(3500)) + log10(3500))),
+                  orthoP_MOD  = round(10**((1.0497*log10(0.356) + 1.066) * (log10(ref_P_used) - log10(3500)) + log10(3500))),
+                  orthoP_POOR = round(10**((1.0497*log10(0.166) + 1.066) * (log10(ref_P_used) - log10(3500)) + log10(3500))),
+                  orthoP_HIGH_mg = orthoP_HIGH / 1000,
+                  orthoP_GOOD_mg = orthoP_GOOD / 1000,
+                  orthoP_MOD_mg = orthoP_MOD / 1000,
+                  orthoP_POOR_mg = orthoP_POOR / 1000)
+
+  ortho_stds <- ortho_stds %>%
+    dplyr::select(location_name, names(ortho_stds)[grepl("orthoP_", names(ortho_stds))])
+
+  return(ortho_stds)
+
+}
+
 plotly_legends <- function(chart) {
   ###
   # Function to remove duplicate legend entries in interactive plots generated
