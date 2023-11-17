@@ -86,7 +86,7 @@ OUTPUT_PATH <- "Outputs/"
 # Specify style for time series plots. The available options are:
 # "line"  = WFD levels are delimited by coloured, dashed lines. Use this option if tributary rivers need to be highlighted
 # "block" = WFD levels are delimited by coloured blocks. Tributary rivers cannot be highlighted.
-CHART_TYPE <- "line"
+CHART_TYPE <- "block"
 # On the charts, identify the source of the data
 SHOW_DATA_SOURCE <- FALSE
 
@@ -357,6 +357,18 @@ full_data <- merge %>%
   dplyr::left_join(metadata, by = "location_name") %>%
   dplyr::left_join(standards) %>%
   dplyr::left_join(params)
+
+### Calculate orthophosphate standards for charts
+
+ortho_stds <- calc_orthop_stds(metadata, "location_name", "alkalinity", "altitude_m")
+
+full_data <- full_data %>%
+  dplyr::left_join(ortho_stds) %>%
+  dplyr::mutate(HIGH = ifelse(parameter == "orthoP", orthoP_HIGH_mg, HIGH),
+                GOOD = ifelse(parameter == "orthoP", orthoP_GOOD_mg, GOOD),
+                MODERATE = ifelse(parameter == "orthoP", orthoP_MOD_mg, MODERATE),
+                POOR = ifelse(parameter == "orthoP", orthoP_POOR_mg, POOR)) %>%
+  dplyr::select(!starts_with("orthoP_"))
 
 ```
 

@@ -223,7 +223,7 @@ calc_orthop_stds <- function(df, loc_var, alk_var, alt_var){
 
   ortho_stds <- df %>%
     dplyr::select(all_of(VARS)) %>%
-    dplyr::mutate(alt_used = ifelse(alt_var > 355, 355, round(alt_var)),
+    dplyr::mutate(alt_used = ifelse(!!rlang::sym(alt_var) > 355, 355, round(!!rlang::sym(alt_var))),
                   alk_used = ifelse(!!rlang::sym(alk_var) < 2, 2, round(!!rlang::sym(alk_var))),
                   ref_P = 10 ** (0.454*log10(alk_used) - 0.0018*alt_used + 0.476),
                   ref_P_used = ifelse(ref_P < 7, 7, round(ref_P, 1)))
