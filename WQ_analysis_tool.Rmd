@@ -86,7 +86,7 @@ OUTPUT_PATH <- "Outputs/"
 # Specify style for time series plots. The available options are:
 # "line"  = WFD levels are delimited by coloured, dashed lines. Use this option if tributary rivers need to be highlighted
 # "block" = WFD levels are delimited by coloured blocks. Tributary rivers cannot be highlighted.
-CHART_TYPE <- "block"
+CHART_TYPE <- "line"
 # On the charts, identify the source of the data
 SHOW_DATA_SOURCE <- FALSE
 
@@ -712,11 +712,11 @@ counter <- 1
     ### Charts with high status to top (higher values, higher status)
     if (unique(chart_data$std_order == "asc")){
       chart<-ggplot(data = chart_data) +
-        {if(CHART_TYPE == "block")geom_rect(aes(ymin = y_min_val, ymax = HIGH, xmin = x_min_val, xmax = x_max_val), fill = '#B7DEE8', alpha = 1)} +
-        {if(CHART_TYPE == "block")geom_rect(aes(ymin = HIGH, ymax = GOOD, xmin = x_min_val, xmax = x_max_val), fill = '#D8E4BC', alpha = 1)} +
-        {if(CHART_TYPE == "block")geom_rect(aes(ymin = GOOD, ymax = MODERATE, xmin = x_min_val, xmax = x_max_val), fill = '#FFFF66', alpha = 1)} +
-        {if(CHART_TYPE == "block")geom_rect(aes(ymin = MODERATE, ymax = POOR, xmin = x_min_val, xmax = x_max_val), fill = '#FFCC66', alpha = 1)} +
-        {if(CHART_TYPE == "block")geom_rect(aes(ymin = POOR, ymax = y_max_val, xmin = x_min_val, xmax = x_max_val), fill = '#FF9999', alpha = 1)} +
+        {if(CHART_TYPE == "block")geom_rect(aes(ymin = y_min_val, ymax = HIGH, xmin = x_min_val, xmax = x_max_val, text = "High"), fill = '#B7DEE8', alpha = 1)} +
+        {if(CHART_TYPE == "block")geom_rect(aes(ymin = HIGH, ymax = GOOD, xmin = x_min_val, xmax = x_max_val, text = "Good"), fill = '#D8E4BC', alpha = 1)} +
+        {if(CHART_TYPE == "block")geom_rect(aes(ymin = GOOD, ymax = MODERATE, xmin = x_min_val, xmax = x_max_val, text = "Moderate"), fill = '#FFFF66', alpha = 1)} +
+        {if(CHART_TYPE == "block")geom_rect(aes(ymin = MODERATE, ymax = POOR, xmin = x_min_val, xmax = x_max_val, text = "Poor"), fill = '#FFCC66', alpha = 1)} +
+        {if(CHART_TYPE == "block")geom_rect(aes(ymin = POOR, ymax = y_max_val, xmin = x_min_val, xmax = x_max_val, text = "Bad"), fill = '#FF9999', alpha = 1)} +
         {if(CHART_TYPE == "line")geom_rect(data = subset(chart_data, main_trib == "tributary")[1,], aes(fill = "#D9D9D9", xmin = x_min_val, xmax = x_max_val, ymin = y_min_val, ymax = y_max_val),  alpha = 0.5)} +
         {if(CHART_TYPE == "line")geom_hline(aes(yintercept = HIGH), colour = '#B7DEE8', linetype = 2, linewidth = 1.2)} +
         {if(CHART_TYPE == "line")geom_hline(aes(yintercept = GOOD), colour = '#D8E4BC', linetype = 2, linewidth = 1.2)} +
@@ -738,11 +738,11 @@ counter <- 1
     ### Charts with bad  status to top (higher values, lower status)
     if(unique(chart_data$std_order == "desc")){
       chart<-ggplot(data = chart_data) +
-        {if(CHART_TYPE == "block")geom_rect(aes(ymin = y_min_val, ymax = POOR, xmin = x_min_val, xmax = x_max_val), fill = '#FF9999', alpha = 1)} +
-        {if(CHART_TYPE == "block")geom_rect(aes(ymin = POOR, ymax = MODERATE, xmin = x_min_val, xmax = x_max_val), fill = '#FFCC66', alpha = 1)} +
-        {if(CHART_TYPE == "block")geom_rect(aes(ymin = MODERATE, ymax = GOOD, xmin = x_min_val, xmax = x_max_val), fill = '#FFFF66', alpha = 1)} +
-        {if(CHART_TYPE == "block")geom_rect(aes(ymin = GOOD, ymax = HIGH, xmin = x_min_val, xmax = x_max_val), fill = '#D8E4BC', alpha = 1)} +
-        {if(CHART_TYPE == "block")geom_rect(aes(ymin = HIGH, ymax = y_max_val, xmin = x_min_val, xmax = x_max_val), fill = '#B7DEE8', alpha = 1)} +
+        {if(CHART_TYPE == "block")geom_rect(aes(ymin = y_min_val, ymax = POOR, xmin = x_min_val, xmax = x_max_val, text = "Bad"), fill = '#FF9999', alpha = 1)} +
+        {if(CHART_TYPE == "block")geom_rect(aes(ymin = POOR, ymax = MODERATE, xmin = x_min_val, xmax = x_max_val, text = "Poor"), fill = '#FFCC66', alpha = 1)} +
+        {if(CHART_TYPE == "block")geom_rect(aes(ymin = MODERATE, ymax = GOOD, xmin = x_min_val, xmax = x_max_val, text = "Moderate"), fill = '#FFFF66', alpha = 1)} +
+        {if(CHART_TYPE == "block")geom_rect(aes(ymin = GOOD, ymax = HIGH, xmin = x_min_val, xmax = x_max_val, text = "Good"), fill = '#D8E4BC', alpha = 1)} +
+        {if(CHART_TYPE == "block")geom_rect(aes(ymin = HIGH, ymax = y_max_val, xmin = x_min_val, xmax = x_max_val, text = "High"), fill = '#B7DEE8', alpha = 1)} +
         {if(CHART_TYPE == "line")geom_rect(data = subset(chart_data, main_trib == "tributary")[1,], aes(fill = "#D9D9D9", xmin = x_min_val, xmax = x_max_val, ymin = y_min_val, ymax = y_max_val),  alpha = 0.5)} +
         {if(CHART_TYPE == "line")geom_hline(aes(yintercept = POOR), colour = '#FFCC66', linetype = 2, linewidth = 1.2)} +
         {if(CHART_TYPE == "line")geom_hline(aes(yintercept = MODERATE), colour = '#FFFF66', linetype = 2, linewidth = 1.2)} +
