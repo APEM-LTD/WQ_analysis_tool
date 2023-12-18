@@ -50,7 +50,6 @@ rm(list = ls())
 
 # Specify the name of the file containing APEM data to be imported. 
 # Data must be saved in the Data folder, but the folder should not be specified here.
-# If not importing APEM data (ie, just using EA data), replace the path with NULL (no quotes)
 TEMPLATE_PATH <- "WQ template example_data.xlsx"
 
 # Specify the sheets to be imported from the input template. To import all worksheets enter "all"
@@ -211,6 +210,9 @@ User-specified settings:
  * End date: **`r EDATE`** 
  * Parameters of interest: **`r PARAMETERS`**  
  * LOD multiplier: **`r LOD_MULTIPLIER`**
+ * Output folder: **`r OUTPUT_PATH`**
+ * Chart style: **`r CHART_TYPE`**
+ * Show data sources on chart: **`r SHOW_DATA_SOURCE`**
  
 ```{r import}
 
@@ -586,7 +588,7 @@ colnames(summary_tab_data) <- c("Location", "Parameter", "Mean", "SD", "Min", "M
 
 summary_tab <- DT::datatable(summary_tab_data, extensions = "Buttons", 
                                      options = list(
-                                       pageLength = length(PARAMETERS) * length(unique(summary_tab_data$Location)),
+                                       pageLength = nrow(summary_1),
                                        dom = 'Bfrtip',
                                        buttons = c('copy', 'csv', 'excel')))
 
@@ -764,7 +766,7 @@ counter <- 1
     ### pH specific chart: high status between 6 and 9
     if(unique(chart_data$std_order == "pH")){
       chart<-ggplot(data = chart_data) +
-        {if(CHART_TYPE == "line")geom_rect(data = subset(chart_data, main_trib == "tributary")[1,], aes(fill = main_trib, xmin = x_min_val, xmax = x_max_val, ymin = 0, ymax = 15), fill = "grey", alpha = 0.5)} +
+        {if(CHART_TYPE == "line")geom_rect(data = subset(chart_data, main_trib == "tributary")[1,], aes(fill = "#D9D9D9", xmin = x_min_val, xmax = x_max_val, ymin = 0, ymax = 15), alpha = 0.5)} +
         {if(CHART_TYPE == "line")geom_hline(aes(yintercept = 6), colour = '#B7DEE8', linetype = 2, linewidth = 1.2)} +
         {if(CHART_TYPE == "line")geom_hline(aes(yintercept = 9), colour = '#B7DEE8', linetype = 2, linewidth = 1.2)} +
         {if(CHART_TYPE == "block")geom_rect(aes(ymin = 6, ymax = 9, xmin = x_min_val, xmax = x_max_val), fill = '#B7DEE8', alpha = 1)} +
