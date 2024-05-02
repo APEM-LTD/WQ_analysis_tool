@@ -690,6 +690,10 @@ full_data <- full_data %>%
 charts <- list()
 counter <- 1
 
+#Set number of breaks for x-axis
+n_years <- max(lubridate::year(chart_data$date)) - min(lubridate::year(chart_data$date))
+breaks <- if(n_years<=2) {"1 month"} else if(n_years <= 10) { "1 years"} else if(n_years >10 & n_years <= 20) { "2 years"} else {"5 years"} 
+
 ### Loop through site/parameter combinations and plot
 #for (l in unique(full_data$location_name)) {
   for (p in unique(full_data$parameter)) {
@@ -712,7 +716,7 @@ counter <- 1
     xbreak <- round(length(unique(chart_data$date)), digits = 0)
     
     ### Charts with high status to top (higher values, higher status)
-    if (unique(chart_data$std_order == "asc")){
+    if (unique(chart_data$std_order) == "asc"){
       chart<-ggplot(data = chart_data) +
         {if(CHART_TYPE == "block")geom_rect(aes(ymin = y_min_val, ymax = HIGH, xmin = x_min_val, xmax = x_max_val, text = "High"), fill = '#B7DEE8', alpha = 1)} +
         {if(CHART_TYPE == "block")geom_rect(aes(ymin = HIGH, ymax = GOOD, xmin = x_min_val, xmax = x_max_val, text = "Good"), fill = '#D8E4BC', alpha = 1)} +
@@ -726,13 +730,13 @@ counter <- 1
         {if(CHART_TYPE == "line")geom_hline(aes(yintercept = POOR), colour = '#FFCC66', linetype = 2, linewidth = 1.2)} +
         {if(SHOW_DATA_SOURCE == TRUE)geom_point(aes(x = as.Date(date), y = result, shape = source_name))} +
         {if(SHOW_DATA_SOURCE == FALSE)geom_point(aes(x = as.Date(date), y = result))} +
+        scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
         scale_y_continuous(limits = c(y_min_val, y_max_val), breaks = pretty_breaks()) +
         {if(CHART_TYPE == "line")scale_fill_manual(values="#D9D9D9", labels=c("Tributary river"), name = "")} +
         theme_bw() +
         theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
         scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
-             x = "Date",
              shape = "Data source",
              title = p_name)
     }
@@ -758,7 +762,6 @@ counter <- 1
         theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
         scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
-             x = "Date",
              shape = "Data source",
              title = p_name)
     }
@@ -778,7 +781,6 @@ counter <- 1
         theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
         scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
-             x = "Date",
              shape = "Data source",
              title = p_name)
     }
@@ -795,7 +797,6 @@ counter <- 1
         theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
         scale_shape_manual(values = c(3,4,1,5)) +
         labs(y = p_name,
-             x = "Date",
              shape = "Data source",
              title = p_name)
     }
