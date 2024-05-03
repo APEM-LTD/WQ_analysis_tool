@@ -88,6 +88,8 @@ OUTPUT_PATH <- "Outputs/"
 CHART_TYPE <- "line"
 # On the charts, identify the source of the data
 SHOW_DATA_SOURCE <- FALSE
+# On nitrate charts, show old standard at 11.3mg/L
+SHOW_NITRATE_STANDARD <- TRUE
 
 ```
 
@@ -550,42 +552,33 @@ summary_1 <- full_data %>%
                                                 any(parameter == "pH")      ~ mn + (PH_Z * sd),
                                                 any(parameter == "BOD")     ~ exp(log(mn/(sqrt(1+((sd**sd)/(mn*mn))))) + (BOD_Z * sqrt(log(1+((sd*sd)/(mn*mn)))))),
                                                 any(parameter == "amm_N")   ~ exp(log(mn/(sqrt(1+((sd**sd)/(mn*mn))))) + (AMM_Z * sqrt(log(1+((sd*sd)/(mn*mn)))))),
-                                                .default = NA_integer_),
-                   src = "All data"
+                                                .default = NA_integer_)
                    ) %>%
   dplyr::ungroup()
 
-### Calculate summary statistics with outliers removed
-summary_2 <- full_data %>%
-  dplyr::filter(outlier == FALSE) %>%
+summary_1_ph2 <- full_data %>%
+  dplyr::filter(parameter == "pH") %>%
   dplyr::group_by(location_name, output_headers) %>%
   dplyr::summarise(mn = mean(result, na.rm = TRUE),
                    sd = sd(result, na.rm = TRUE),
-                   min = min(result, na.rm = TRUE),
-                   max = max(result, na.rm = TRUE),
-                   percentile = case_when(any(parameter == "temp")    ~ 0.98,
-                                          any(parameter == "RDO_sat") ~ 0.1,
-                                          any(parameter == "pH")      ~ 0.05,
-                                          any(parameter == "BOD")     ~ 0.9,
-                                          any(parameter == "amm_N")   ~ 0.9,
-                                          .default = NA_integer_),
-                   percentile_value = case_when(any(parameter == "temp")    ~ mn + (TEMP_Z * sd),
-                                                any(parameter == "RDO_sat") ~ mn + (DO_Z * sd),
-                                                any(parameter == "pH")      ~ mn + (PH_Z * sd),
-                                                any(parameter == "BOD")     ~ exp(log(mn/(sqrt(1+((sd**sd)/(mn*mn))))) + (BOD_Z * sqrt(log(1+((sd*sd)/(mn*mn)))))),
-                                                any(parameter == "amm_N")   ~ exp(log(mn/(sqrt(1+((sd**sd)/(mn*mn))))) + (AMM_Z * sqrt(log(1+((sd*sd)/(mn*mn)))))),
-                                                .default = NA_integer_),
-                   src = "Outliers removed"
+                   min = NA_integer_,
+                   max = NA_integer_,
+                   percentile = 0.95,
+                   percentile_value = mn + (1.645 * sd)
                    ) %>%
-  dplyr::ungroup()
+  dplyr::ungroup() %>%
+  dplyr::mutate(mn = NA_integer_,
+                sd = NA_integer_)
 
-### Combine for reporting
-summary_tab_data <- summary_1 %>%
-  dplyr::rows_append(summary_2) %>%
+summary_tab_data <- rbind(summary_1, summary_1_ph2) %>%
+  dplyr::arrange(location_name, output_headers)
+
+### Format for reporting
+summary_tab_data <- summary_tab_data %>%
   dplyr::mutate(across(c(mn, sd, min, max, percentile, percentile_value), ~ round(., digits = 2)))
+colnames(summary_tab_data) <- c("Location", "Parameter", "Mean", "SD", "Min", "Max", "Percentile", "Percentile value")
 
-colnames(summary_tab_data) <- c("Location", "Parameter", "Mean", "SD", "Min", "Max", "Percentile", "Percentile value", "Source")
-
+### Interactive table for report
 summary_tab <- DT::datatable(summary_tab_data, extensions = "Buttons", 
                                      options = list(
                                        pageLength = nrow(summary_1),
@@ -594,16 +587,15 @@ summary_tab <- DT::datatable(summary_tab_data, extensions = "Buttons",
 
 ### Merge result back to main data
 ### format
-summary_1 <- summary_1 %>%
-  dplyr::select(!src)
+summary_1_ph2 <- summary_1_ph2 %>%
+  dplyr::select(location_name, output_headers, percentile, percentile_value) %>%
+  dplyr::rename(percentile2 = percentile, percentile2_value = percentile_value)
 
-summary_2 <- summary_2 %>% 
-  dplyr::rename(mn_out = mn, sd_out = sd, min_out = min, max_out = max, percentile_out = percentile) %>%
-  dplyr::select(!src)
+summary_1 <- summary_1 %>%
+  dplyr::left_join(summary_1_ph2)
 
 full_data <- full_data %>%
-  dplyr::left_join(summary_1) %>%
-  dplyr::left_join(summary_2)
+  dplyr::left_join(summary_1)
 
 ```
 
@@ -691,7 +683,7 @@ charts <- list()
 counter <- 1
 
 #Set number of breaks for x-axis
-n_years <- max(lubridate::year(chart_data$date)) - min(lubridate::year(chart_data$date))
+n_years <- max(lubridate::year(full_data$date)) - min(lubridate::year(full_data$date))
 breaks <- if(n_years<=2) {"1 month"} else if(n_years <= 10) { "1 years"} else if(n_years >10 & n_years <= 20) { "2 years"} else {"5 years"} 
 
 ### Loop through site/parameter combinations and plot
@@ -701,17 +693,17 @@ breaks <- if(n_years<=2) {"1 month"} else if(n_years <= 10) { "1 years"} else if
     chart_data <- full_data %>%
       #dplyr::filter(location_name == l & parameter == p) %>%
       dplyr::filter(parameter == p) %>%
-      dplyr::mutate(x_min_val = as.Date(paste0(as.character(lubridate::year(min(date))), "-01-01")),
-                    x_max_val = as.Date(paste0(as.character(lubridate::year(max(date))), "-12-31")),
-                    y_min_val = min(result, HIGH - 10, POOR, -10, na.rm = TRUE),
-                    y_min_val = ifelse(y_min_val < 0, 0, y_min_val),
-                    y_max_val = max(result, HIGH * 1.1, POOR * 1.1, na.rm = TRUE),
+      dplyr::mutate(x_min = as.Date(paste0(as.character(lubridate::year(min(date))), "-01-01")),
+                    x_max = as.Date(paste0(as.character(lubridate::year(max(date))), "-12-31")),
+                    y_min = min(result, HIGH - 10, POOR, -10, na.rm = TRUE),
+                    y_min = ifelse(y_min < 0, 0, y_min_val),
+                    y_max = max(result, HIGH * 1.1, POOR * 1.1, na.rm = TRUE),
                     feature = factor(feature, levels = c("Upstream", "Downstream")))
     
-    y_min_val <- min(chart_data$y_min_val)
-    y_max_val <- max(chart_data$y_max_val)
-    x_min_val <- unique(chart_data$x_min_val)
-    x_max_val <- unique(chart_data$x_max_val)
+    y_min_val <- min(chart_data$y_min)
+    y_max_val <- max(chart_data$y_max)
+    x_min_val <- unique(chart_data$x_min)
+    x_max_val <- unique(chart_data$x_max)
     p_name <- unique(chart_data$output_headers)
     xbreak <- round(length(unique(chart_data$date)), digits = 0)
     
@@ -787,12 +779,23 @@ breaks <- if(n_years<=2) {"1 month"} else if(n_years <= 10) { "1 years"} else if
     
     ### Parameters without WFD standards
     if(unique(chart_data$std_order == "none")){
+      
+      ## Add nitrate standard if nitrate plot and SHOW_NITRATE_STANDARD set
+      nitrate <- FALSE
+      if(p == "nitrate" & SHOW_NITRATE_STANDARD == TRUE) {
+        
+        nitrate <- TRUE
+        y_max_val <- ifelse(p == "nitrate", max(max(chart_data$y_max), 11.5), max(chart_data$y_max))
+        
+      }
+      
       chart<-ggplot(data = chart_data) +
         {if(CHART_TYPE == "line")geom_rect(data = subset(chart_data, main_trib == "tributary")[1,], aes(fill = "#D9D9D9", xmin = x_min_val, xmax = x_max_val, ymin = y_min_val, ymax = y_max_val),  alpha = 0.5)} +
+        {if(nitrate) geom_hline(aes(yintercept = 11.3), colour = "black", linetype = 2, linewidth = 1.2)} +
         {if(SHOW_DATA_SOURCE == TRUE)geom_point(aes(x = as.Date(date), y = result, shape = source_name))} +
         {if(SHOW_DATA_SOURCE == FALSE)geom_point(aes(x = as.Date(date), y = result))} +
-        scale_y_continuous(limits = c(y_min_val, y_max_val), breaks = pretty_breaks()) +
         {if(CHART_TYPE == "line")scale_fill_manual(values="#D9D9D9", labels=c("Tributary river"), name = "")} +
+        scale_y_continuous(limits = c(y_min_val, y_max_val), breaks = pretty_breaks()) +
         theme_bw() +
         theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
         scale_shape_manual(values = c(3,4,1,5)) +
