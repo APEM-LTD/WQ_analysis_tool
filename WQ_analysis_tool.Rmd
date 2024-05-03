@@ -246,6 +246,28 @@ desc <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
 
 ```
 
+```{r data_checks}
+
+### Metadata
+## Check wb type completed
+if(sum(is.na(metadata$wb_type)) > 0) {
+  stop("Waterbody type (salmonid/cyprinid) must be completed for all sites.")
+}
+
+## Check wb type completed
+if(sum(is.na(metadata$altitude)) > 0) {
+  stop("Site altidude (lowland/upland) must be completed for all sites.")
+}
+
+## Check for altitude_m/alkalinity
+if(sum(is.na(metadata$altitude_m)) > 0 | sum(is.na(metadata$alkalinity)) > 0) {
+  warning("Site altitude and/or alkalinity not specified. Unable to calculate orthophosphate standards")
+}
+
+
+
+```
+
 ```{r ea_import}
 
 ## AUTO-IMPORT EA DATA
