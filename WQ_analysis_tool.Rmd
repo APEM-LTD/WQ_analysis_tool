@@ -745,6 +745,7 @@ for (p in unique(full_data$parameter)) {
       {if(CHART_TYPE == "line")geom_hline(aes(yintercept = POOR), colour = '#FFCC66', linetype = 2, linewidth = 1.2)} +
       {if(SHOW_DATA_SOURCE == TRUE)geom_point(aes(x = as.Date(date), y = result, shape = source_name), pch = 21, colour = "lightgrey", fill = "black", size = 3)} +
       {if(SHOW_DATA_SOURCE == FALSE)geom_point(aes(x = as.Date(date), y = result), pch = 21, colour = "lightgrey", fill = "black", size = 3)}
+  }
 
   ### Charts with bad  status to top (higher values, lower status)
   if(unique(chart_data$std_order == "desc")){
@@ -771,10 +772,7 @@ for (p in unique(full_data$parameter)) {
       {if(CHART_TYPE == "line")geom_hline(aes(yintercept = 9), colour = '#B7DEE8', linetype = 2, linewidth = 1.2)} +
       {if(CHART_TYPE == "block")geom_rect(aes(ymin = 6, ymax = 9, xmin = x_min_val, xmax = x_max_val), fill = '#B7DEE8', alpha = 1)} +
       {if(SHOW_DATA_SOURCE == TRUE)geom_point(aes(x = as.Date(date), y = result, shape = source_name))} +
-      {if(SHOW_DATA_SOURCE == FALSE)geom_point(aes(x = as.Date(date), y = result))} +
-      scale_y_continuous(limits = c(0, 15), breaks = pretty_breaks()) +
-      {if(CHART_TYPE == "line")scale_fill_manual(values="#D9D9D9", labels=c("Tributary river"), name = "")}
-
+      {if(SHOW_DATA_SOURCE == FALSE)geom_point(aes(x = as.Date(date), y = result))} 
   }
 
   ### Parameters without WFD standards
@@ -793,8 +791,7 @@ for (p in unique(full_data$parameter)) {
       {if(CHART_TYPE == "line")geom_rect(data = subset(chart_data, main_trib == "tributary")[1,], aes(fill = "#D9D9D9", xmin = x_min_val, xmax = x_max_val, ymin = y_min_val, ymax = y_max_val),  alpha = 0.5)} +
       {if(nitrate) geom_hline(aes(yintercept = 11.3), colour = "black", linetype = 2, linewidth = 1.2)} +
       {if(SHOW_DATA_SOURCE == TRUE)geom_point(aes(x = as.Date(date), y = result, shape = source_name))} +
-      {if(SHOW_DATA_SOURCE == FALSE)geom_point(aes(x = as.Date(date), y = result))} +
-      {if(CHART_TYPE == "line")scale_fill_manual(values="#D9D9D9", labels=c("Tributary river"), name = "")}
+      {if(SHOW_DATA_SOURCE == FALSE)geom_point(aes(x = as.Date(date), y = result))} 
   }
 
   ## Apply chart formatting
@@ -816,24 +813,24 @@ for (p in unique(full_data$parameter)) {
            x = "",
            shape = "Data source",
            title = p_name)
-  }
-
-  ## Apply faceting
-  if(sum(is.na(chart_data$feature)) == 0) {
-    chart <- chart + facet_nested(parameter~feature+location_name, switch = "y", scales = "free_y")
-  } else {
-    chart <- chart + facet_grid(parameter~location_name, switch = "y", scales = "free_y")
-  }
-
-  ggsave(plot = chart, filename = paste0("Output/facet_plot_",p,"_", as.character(Sys.Date()), ".png"),
-         width = 30, height = 15, units = "cm")
-
-  c <- plotly::ggplotly(chart, width = 800) %>%
-    layout(autosize = FALSE, margin = list(l = 50, r = 50, b = 110, t = 110, pad = 4))
-  c <- plotly_legends(c)
-  charts[[counter]] <- c
-  counter <- counter + 1
-
+    
+    
+    ## Apply faceting
+    if(sum(is.na(chart_data$feature)) == 0) {
+      chart <- chart + facet_nested(parameter~feature+location_name, switch = "y", scales = "free_y")
+    } else {
+      chart <- chart + facet_grid(parameter~location_name, switch = "y", scales = "free_y")
+    }
+    
+    ggsave(plot = chart, filename = paste0("Output/facet_plot_",p,"_", as.character(Sys.Date()), ".png"),
+           width = 30, height = 15, units = "cm")
+    
+    c <- plotly::ggplotly(chart, width = 800) %>%
+      layout(autosize = FALSE, margin = list(l = 50, r = 50, b = 110, t = 110, pad = 4))
+    c <- plotly_legends(c)
+    charts[[counter]] <- c
+    counter <- counter + 1
+    
 }
 
 htmltools::tagList(charts)
@@ -849,7 +846,10 @@ wide_output <- full_data %>%
 
 ### Restructure summary table for reporting.
 wide_summary <- summary_tab_data %>%
-  tidyr::pivot_longer(cols = c(Mean, SD, Min, Max, Percentile, "Percentile value"),
+  dplyr::filter(!(is.na(Mean) & Parameter == "pH")) %>%
+  dplyr::left_join(summary_1_ph2, by = c("Location" = "location_name", "Parameter" = "output_headers")) %>%
+  dplyr::rename("Percentile 2" = percentile2, "Percentile 2 value" = percentile2_value) %>%
+  tidyr::pivot_longer(cols = c(Mean, SD, Min, Max, Percentile, "Percentile value", "Percentile 2", "Percentile 2 value"),
                       names_to = "metric",
                       values_to = "value") %>%
   tidyr::pivot_wider(names_from = Parameter, values_from = value) %>%
