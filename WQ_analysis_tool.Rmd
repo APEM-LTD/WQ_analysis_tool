@@ -574,7 +574,8 @@ summary_1 <- full_data %>%
                                                 any(parameter == "pH")      ~ mn + (PH_Z * sd),
                                                 any(parameter == "BOD")     ~ exp(log(mn/(sqrt(1+((sd**sd)/(mn*mn))))) + (BOD_Z * sqrt(log(1+((sd*sd)/(mn*mn)))))),
                                                 any(parameter == "amm_N")   ~ exp(log(mn/(sqrt(1+((sd**sd)/(mn*mn))))) + (AMM_Z * sqrt(log(1+((sd*sd)/(mn*mn)))))),
-                                                .default = NA_integer_)
+                                                .default = NA_integer_),
+                   n_samples = n()
                    ) %>%
   dplyr::ungroup()
 
@@ -586,7 +587,8 @@ summary_1_ph2 <- full_data %>%
                    min = NA_integer_,
                    max = NA_integer_,
                    percentile = 0.95,
-                   percentile_value = mn + (1.645 * sd)
+                   percentile_value = mn + (1.645 * sd),
+                   n_samples = n()
                    ) %>%
   dplyr::ungroup() %>%
   dplyr::mutate(mn = NA_integer_,
@@ -600,7 +602,7 @@ if(nrow(summary_1_ph2) > 0){
 ### Format for reporting
 summary_tab_data <- summary_tab_data %>%
   dplyr::mutate(across(c(mn, sd, min, max, percentile, percentile_value), ~ round(., digits = 2)))
-colnames(summary_tab_data) <- c("Location", "Parameter", "Mean", "SD", "Min", "Max", "Percentile", "Percentile value")
+colnames(summary_tab_data) <- c("Location", "Parameter", "Mean", "SD", "Min", "Max", "Percentile", "Percentile value", "No. samples")
 
 ### Interactive table for report
 summary_tab <- DT::datatable(summary_tab_data, extensions = "Buttons", 
@@ -849,11 +851,60 @@ wide_summary <- summary_tab_data %>%
   dplyr::filter(!(is.na(Mean) & Parameter == "pH")) %>%
   dplyr::left_join(summary_1_ph2, by = c("Location" = "location_name", "Parameter" = "output_headers")) %>%
   dplyr::rename("Percentile 2" = percentile2, "Percentile 2 value" = percentile2_value) %>%
-  tidyr::pivot_longer(cols = c(Mean, SD, Min, Max, Percentile, "Percentile value", "Percentile 2", "Percentile 2 value"),
+  tidyr::pivot_longer(cols = c(Mean, SD, Min, Max, Percentile, "Percentile value", "Percentile 2", "Percentile 2 value", "No. samples"),
                       names_to = "metric",
                       values_to = "value") %>%
   tidyr::pivot_wider(names_from = Parameter, values_from = value) %>%
   dplyr::arrange(Location)
+
+```
+
+```{r final_summary}
+
+col_names <- c("Location name", "Data period", "No. samples", "Temp (C, 98%ile)", "DO(%, 10%ile)", "pH(5%ile)", "pH(95%ile)", "Ammonia(mg/l, 90%ile)", "Orthophosphate(mg/l, mean)", "BOD(mg/l, 90%ile)")
+
+params <- colnames(wide_summary)[3:ncol(wide_summary)]
+
+summary_report <- wide_summary %>%
+  dplyr::filter(metric %in% c("Mean", "Percentile value", "Percentile 2 value")) %>%
+  dplyr::mutate(across(all_of(params[c(1:4, 6, 7)]),~ifelse(metric == "Mean", NA, .)))
+
+## Separate out second pH percentile values
+ph_95 <- summary_report %>%
+  dplyr::filter(metric == "Percentile 2 value") %>%
+  dplyr::select(Location, pH) %>%
+  dplyr::rename(pH_95 = pH)
+
+summary_report <- summary_report %>%
+  dplyr::filter(metric != "Percentile 2 value") %>%
+  dplyr::group_by(Location) %>%
+  dplyr::summarise(across(all_of(params),~mean(., na.rm = TRUE))) %>%
+  dplyr::ungroup()
+
+## Get n_samples
+samples <- summary_tab_data %>%
+  dplyr::group_by(Location) %>%
+  dplyr::summarise(n_samples = mean(`No. samples`, na.rm = TRUE)) %>%
+  dplyr::ungroup()
+
+summary_report <- summary_report %>%
+  dplyr::left_join(samples) %>%
+  dplyr::left_join(ph_95)
+
+## Get time period for report
+years <- full_data %>%
+  dplyr::group_by(location_name) %>%
+  dplyr::summarise(min_yr = min(lubridate::year(date_time), na.rm = TRUE),
+                   max_yr = max(lubridate::year(date_time), na.rm = TRUE)) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(period = paste0(as.character(min_yr), " - ", as.character(max_yr))) %>%
+  dplyr::select(location_name, period)
+
+summary_report <- summary_report %>%
+  dplyr::left_join(years, by = c("Location" = "location_name")) %>%
+  dplyr::select(Location, period, n_samples, "Temperature (°C)", "DO (%)", "pH", "pH_95", "Ammoniacal Nitrogen as N (mg/L)", "Orthophosphate as P (mg/L)", "Biochemical Oxygen Demand (mg/L)")
+
+colnames(summary_report) <- col_names
 
 ```
 
