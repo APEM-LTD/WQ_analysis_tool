@@ -16,31 +16,36 @@ editor_options:
 
 ```{r setup, include=FALSE}
 
-############################################### OPERATING INSTRUCTIONS ###############################################
+############################################### OPERATING INSTRUCTIONS ##############################################
 #
 ## Introduction
 #
-# This is the Water Quality Data Analysis System, developed by APEM Ltd. This workflow will build a  report for given site IDs and return tables showing potential data issues, summaries of the data split by site, a location map and time series charts for each location/parameter. The charts include interactive metric plots to allow individual data points to be investigated. 
+# This is the Water Quality Data Analysis System (WQDAS), developed by APEM Ltd. This workflow will build a  report for given site IDs and return tables showing potential data issues, summaries of the data split by site, a location map and time series charts for each location/parameter. The charts include interactive metric plots to allow individual data points to be investigated. 
 #
 ## Running the Toolbox:
 #
 # * Create a copy of this RStudio project and, if not present, transfer a copy of this script to the new folder. This project should also contain a folder called "Data", which contains input data files. 
 # * Before running the tool, configure the Settings in the section below, which allow users to specify:
-#   * Site IDs, both EA and APEM (maximum six sites per run). The order in which sites are specified will be reflecetd in the plots/tables.
-#   * A start date for the macroinvertebrate samples (if required).
-#   * An end date for the macroinvertebrate samples (if required).
 #   * A path to any APEM data to be imported into the tool
-#   * A guideline standard to be applied to the LIFE metric plots (0.94 or 1.0)
-#   * A flag to indicate whether or not to apply trend lines to the metric plots.
-#   * A flag to indicate whether or not to apply confidence intervals to trend lines in metric plots (if applied).
-#   * A filter to select data only for specific seasons
-#   * Options to set default values for the environmental parameters required for RICT
+#   * Which data sheets within the APEM data template to import.
+#   * A start date for the data (if required).
+#   * An end date for the data (if required).
+#   * Which WQ parameters to analyse (see the list in the PARAMETERS tab of the template for allowed params)
+#   * Site IDs, both APEM and EA (recommended maximum is six sites per run). The order in which sites are specified will be reflected in the plots/tables.
+#   * A multiplier to be applied to any data outwith the limits of detection
+#   * A path to where the outputs should be saved (defaults to the Outpot folder within this project)
+#   * Some settings to style the parameter charts
+#    - Whether to show WFD standards as lines on the chart or as coloured
+#    - Whether to format the shapes of the points on the charts to identify the source of the data 
+#    - On the nitrate plots, whether to show the old reference standard at 11.3mg/L
+#    - Whether to zoom the plots to the data (by default, all WFD standards are shown irrespective of the data range)
 # * Save a copy of the script with your parameters specified.  
-# * To run the script, use the Knit button above. This will render the report as an HTML document, saved to the top level project folder (see the files tab to the right). By default, the report will be called MI_analysis_vX.html (the report name matches the name of this script file). 
+# * To run the script, use the Knit button above. This will render the report as an HTML document, saved to the top level project folder (see the files tab to the right). By default, the report will be called WQDAS_vX.html (the report name matches the name of this script file). 
 ######################################################################################################################
 
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, error = FALSE, message = FALSE)
 rm(list = ls())
+VERSION <- "1.0.0"
 
 ```
 
@@ -92,7 +97,7 @@ SHOW_DATA_SOURCE <- FALSE
 SHOW_NITRATE_STANDARD <- TRUE
 # Adjust min/max values to allow charts to zoom to data or to include the WFD standards as well
 # The default ("standards") uses all data including WFD standards. Use "data" to zoom charts to the data. This is useful if, for example, a dataset is clustered at the bottom of a chart) 
-CHART_ZOOM <- "standards"
+CHART_ZOOM <- "data"
 
 ```
 
@@ -236,7 +241,7 @@ params <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
                              sheet = "PARAMETERS")   # Loads PARAMETERS tab with details of column headers
 
 metadata <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
-                             sheet = "METADATA") %>%    # Loads PARAMETERS tab with details of column headers)
+                             sheet = "METADATA") %>%    # Loads METADATA tab with details of the sites)
   dplyr::filter(!(if_any(c(location_name, location_id, wb_type, altitude, main_trib),is.na)))
 
 standards <- readxl::read_excel(paste0("Data/", TEMPLATE_PATH),
@@ -328,7 +333,8 @@ if(is.null(EA_SITES) == FALSE){
     dplyr::select(!c(EA_ID, location_id, wb_type, altitude))
   
 } else {
-  ea_wq_data <- readr::read_csv("Data/wq_data_blank.csv")
+  ## Pull in blank file for matching on.
+  ea_wq_data <- hetoolkit::import_wq(sites = "")
 }
 
 ```
@@ -880,12 +886,16 @@ wide_summary <- summary_tab_data %>%
 
 ```
 
+# Overall summary report
+
 ```{r final_summary}
 
+## Create final summary table with status highlighted
 col_names <- c("Location name", "Data period", "No. samples", "Temp (C, 98%ile)", "DO(%, 10%ile)", "pH(5%ile)", "pH(95%ile)", "Ammonia(mg/l, 90%ile)", "Orthophosphate(mg/l, mean)", "BOD(mg/l, 90%ile)")
 
 params <- colnames(wide_summary)[3:ncol(wide_summary)]
 
+## Pull required data from wide data
 summary_report <- wide_summary %>%
   dplyr::filter(metric %in% c("Mean", "Percentile value", "Percentile 2 value")) %>%
   dplyr::mutate(across(all_of(params[c(1:4, 6, 7)]),~ifelse(metric == "Mean", NA, .)))
@@ -896,6 +906,7 @@ ph_95 <- summary_report %>%
   dplyr::select(Location, pH) %>%
   dplyr::rename(pH_95 = pH)
 
+## Retain only required data for each parameter
 summary_report <- summary_report %>%
   dplyr::filter(metric != "Percentile 2 value") %>%
   dplyr::group_by(Location) %>%
@@ -908,6 +919,7 @@ samples <- summary_tab_data %>%
   dplyr::summarise(n_samples = mean(`No. samples`, na.rm = TRUE)) %>%
   dplyr::ungroup()
 
+## Rejoin all data (count of samples, second pH percentile data)
 summary_report <- summary_report %>%
   dplyr::left_join(samples) %>%
   dplyr::left_join(ph_95)
@@ -921,10 +933,12 @@ years <- full_data %>%
   dplyr::mutate(period = paste0(as.character(min_yr), " - ", as.character(max_yr))) %>%
   dplyr::select(location_name, period)
 
+## Keep only required data
 summary_report <- summary_report %>%
   dplyr::left_join(years, by = c("Location" = "location_name")) %>%
   dplyr::select(Location, period, n_samples, "Temperature (°C)", "DO (%)", "pH", "pH_95", "Ammoniacal Nitrogen as N (mg/L)", "Orthophosphate as P (mg/L)", "Biochemical Oxygen Demand (mg/L)")
 
+## Set column names
 colnames(summary_report) <- col_names
 
 ## Extract standards 
@@ -939,49 +953,77 @@ stds <- full_data %>%
                                       parameter == "amm_N" ~ "Ammoniacal Nitrogen as N (mg/L)",
                                       .default = NA_character_))
 
+## Calculate overall status
 summ_rep <- summary_tab_data %>%
   dplyr::left_join(stds) %>%
   dplyr::mutate(STATUS = case_when(parameter == "temp" ~ ifelse(`Percentile value` < HIGH, "HIGH",
-                                                         ifelse(`Percentile value` < GOOD, "Good",
+                                                         ifelse(`Percentile value` < GOOD, "GOOD",
                                                          ifelse(`Percentile value` < MODERATE, "MODERATE",
                                                          ifelse(`Percentile value` < POOR, "POOR", "BAD")))),
                                    parameter == "RDO_sat" ~ ifelse(`Percentile value` > HIGH, "HIGH",
-                                                         ifelse(`Percentile value` > GOOD, "Good",
+                                                         ifelse(`Percentile value` > GOOD, "GOOD",
                                                          ifelse(`Percentile value` > MODERATE, "MODERATE",
                                                          ifelse(`Percentile value` > POOR, "POOR", "BAD")))),
                                    parameter == "BOD" ~ ifelse(`Percentile value` < HIGH, "HIGH",
-                                                         ifelse(`Percentile value` < GOOD, "Good",
+                                                         ifelse(`Percentile value` < GOOD, "GOOD",
                                                          ifelse(`Percentile value` < MODERATE, "MODERATE",
                                                          ifelse(`Percentile value` < POOR, "POOR", "BAD")))),
                                    parameter == "orthoP" ~ ifelse(Mean < HIGH, "HIGH",
-                                                         ifelse(Mean < GOOD, "Good",
+                                                         ifelse(Mean < GOOD, "GOOD",
                                                          ifelse(Mean < MODERATE, "MODERATE",
                                                          ifelse(Mean < POOR, "POOR", "BAD")))),
                                    parameter == "amm_N" ~ ifelse(`Percentile value` < HIGH, "HIGH",
-                                                         ifelse(`Percentile value` < GOOD, "Good",
+                                                         ifelse(`Percentile value` < GOOD, "GOOD",
                                                          ifelse(`Percentile value` < MODERATE, "MODERATE",
-                                                         ifelse(`Percentile value` < POOR, "POOR", "BAD"))))))
+                                                         ifelse(`Percentile value` < POOR, "POOR", "BAD")))),
+                                   Parameter == "pH" ~ ifelse(`Percentile value` > 6 & `Percentile value` < 9,
+                                                              "HIGH", "POOR")),
+                parameter = ifelse(is.na(parameter), paste0(Parameter, "_", as.character(Percentile)), parameter))
 
+## Keep only final status of each parameter
 summ_rep <- summ_rep %>%
   dplyr::filter(!is.na(STATUS)) %>%
   dplyr::select(Location, parameter, STATUS) %>%
   tidyr::pivot_wider(names_from = parameter,
                      values_from = STATUS) %>%
-  dplyr::rename(`Location name` = Location)
+  dplyr::rename(`Location name` = Location) %>%
+  dplyr::select(c(`Location name`, temp, RDO_sat, pH_0.05, pH_0.95, amm_N, orthoP, BOD))
 
+## Confirm rounding
 summary_report <- summary_report %>%
-  dplyr::left_join(summ_rep)
+  dplyr::left_join(summ_rep) %>%
+  dplyr::mutate(across(all_of(col_names[4:10]), ~round(., 2)))
 
-DT::datatable(summary_report) %>%
-  DT::formatStyle(columns = 4,
-                  valueColumns = 15,
+## Set up data table for report
+  table <- DT::datatable(summary_report, 
+                       class(list(stripe = FALSE)),
+                       extensions = "Buttons",
+                       options = list(
+                         dom = 'Bfrtip',
+                         buttons = c('copy', 'csv', 'excel'),
+                         columnDefs = list(
+                           list(visible = FALSE, targets = 11:17    # Hide status columns 11 to 17
+                           )
+                         )
+                       )
+)
+
+## Format
+for (i in 4:10) {
+  table <- table %>%
+    DT::formatStyle(columns = i,
+                  valueColumns = i + 7,
                   target = "cell",
                   # fontFamily = "Ariel, sans-serif",
                   # border = '0.5px solid #000000',
-                  backgroundColor = styleEqual(c("High", "Good", "Moderate", "Poor", "Bad", ""),
+                  backgroundColor = styleEqual(c("HIGH", "GOOD", "MODERATE", "POOR", "BAD", ""),
                                                c("#B7DEE8", "#C4D79B", "#FFFF66", "#FFCC66", "#FF9999", "White")))
 
+}
+
 ```
+
+`r table`
 
 ```{r data_export}
 
@@ -989,6 +1031,17 @@ DT::datatable(summary_report) %>%
 if (exists("ea_wq_data") == FALSE) {
   ea_wq_data <- NULL
 }
+
+## Formal of overall summary
+summary_report <- summary_report %>%
+  dplyr::select(c("Location name", "Data period", "No. samples", "Temp (C, 98%ile)", "temp", "DO(%, 10%ile)", "RDO_sat", "pH(5%ile)", "pH_0.05", "pH(95%ile)", "pH_0.95", "Ammonia(mg/l, 90%ile)", "amm_N", "Orthophosphate(mg/l, mean)", "orthoP", "BOD(mg/l, 90%ile)", "BOD")) %>%
+  dplyr::rename("Temp. status" = "temp",
+                "DO status" = "RDO_sat",
+                "pH (5%ile) status" = "pH_0.05",
+                "pH (95%ile) status" = "pH_0.95",
+                "Amm. N status" = "amm_N",
+                "Ortho. P. status" = "orthoP",
+                "BOD status" = "BOD")
 
 wb <- openxlsx::buildWorkbook(list(summary_report, sheets[["PROBE_DATA"]], sheets[["LAB_DATA"]], sheets[["MANUAL_FIELD"]], ea_wq_data, lod_tab_data, exclusions_data, outliers_data, summary_tab_data, full_data, wide_output, wide_summary, standards, desc))
 
