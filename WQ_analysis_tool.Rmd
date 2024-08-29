@@ -90,6 +90,9 @@ CHART_TYPE <- "line"
 SHOW_DATA_SOURCE <- FALSE
 # On nitrate charts, show old standard at 11.3mg/L
 SHOW_NITRATE_STANDARD <- TRUE
+# Adjust min/max values to allow charts to zoom to data or to include the WFD standards as well
+# The default ("standards") uses all data including WFD standards. Use "data" to zoom charts to the data. This is useful if, for example, a dataset is clustered at the bottom of a chart) 
+CHART_ZOOM <- "standards"
 
 ```
 
@@ -137,8 +140,9 @@ if(is.null(END_DATE) == TRUE) {
   EDATE <- as.character(END_DATE)
 }
 
-# Convert chart type to lower case
+# Convert chart type settings   to lower case
 CHART_TYPE <- stringr::str_to_lower(CHART_TYPE)
+CHART_ZOOM <- stringr::str_to_lower(CHART_ZOOM)
 
 ```
 
@@ -198,6 +202,11 @@ if(LOD_MULTIPLIER < 0 || LOD_MULTIPLIER > 1) {
 ## Chart type is valid
 if (CHART_TYPE %in% c("line", "block") == FALSE) {
   stop("The chart type must be either 'line' or 'block'.")
+}
+
+## Chart type is valid
+if (CHART_ZOOM %in% c("standards", "data") == FALSE) {
+  stop("The chart zoom setting must be either 'standards' or 'data'.")
 }
 
 ```
@@ -720,10 +729,22 @@ for (p in unique(full_data$parameter)) {
     dplyr::filter(parameter == p) %>%
     dplyr::mutate(x_min = as.Date(paste0(as.character(lubridate::year(min(date))), "-01-01")),
                   x_max = as.Date(paste0(as.character(lubridate::year(max(date))), "-12-31")),
-                  y_min = min(result, HIGH - 10, POOR, -10, na.rm = TRUE),
-                  y_min = ifelse(y_min < 0, 0, y_min_val),
-                  y_max = max(result, HIGH * 1.1, POOR * 1.1, na.rm = TRUE),
+                  # y_min = min(result, HIGH - 10, POOR, -10, na.rm = TRUE),
+                  # y_min = ifelse(y_min < 0, 0, y_min_val),
+                  # y_max = max(result, HIGH * 1.1, POOR * 1.1, na.rm = TRUE),
                   feature = factor(feature, levels = c("Upstream", "Downstream")))
+  
+  if (CHART_ZOOM == "standards") {
+    chart_data <- chart_data %>%
+      dplyr::mutate(y_min = min(result, HIGH - 10, POOR, -10, na.rm = TRUE),
+                    y_min = ifelse(y_min < 0, 0, y_min),
+                    y_max = max(result, HIGH * 1.1, POOR * 1.1, na.rm = TRUE))
+  } else if (CHART_ZOOM == "data") {
+    chart_data <- chart_data %>%
+      dplyr::mutate(y_min = min(result -10, na.rm = TRUE),
+                    y_min = ifelse(y_min < 0, 0, y_min),
+                    y_max = max(result * 1.1, na.rm = TRUE))
+  }
 
   y_min_val <- ifelse(p =="pH", 0, min(chart_data$y_min))
   y_max_val <- ifelse(p == "pH", 15, max(chart_data$y_max))
@@ -906,6 +927,60 @@ summary_report <- summary_report %>%
 
 colnames(summary_report) <- col_names
 
+## Extract standards 
+stds <- full_data %>%
+  dplyr::select(location_name, parameter, HIGH:POOR) %>%
+  distinct() %>%
+  dplyr::rename("Location" = "location_name") %>%
+  dplyr::mutate(Parameter = case_when(parameter == "temp" ~ "Temperature (°C)",
+                                      parameter == "RDO_sat" ~ "DO (%)",
+                                      parameter == "BOD" ~ "Biochemical Oxygen Demand (mg/L)",
+                                      parameter == "orthoP" ~ "Orthophosphate as P (mg/L)",
+                                      parameter == "amm_N" ~ "Ammoniacal Nitrogen as N (mg/L)",
+                                      .default = NA_character_))
+
+summ_rep <- summary_tab_data %>%
+  dplyr::left_join(stds) %>%
+  dplyr::mutate(STATUS = case_when(parameter == "temp" ~ ifelse(`Percentile value` < HIGH, "HIGH",
+                                                         ifelse(`Percentile value` < GOOD, "Good",
+                                                         ifelse(`Percentile value` < MODERATE, "MODERATE",
+                                                         ifelse(`Percentile value` < POOR, "POOR", "BAD")))),
+                                   parameter == "RDO_sat" ~ ifelse(`Percentile value` > HIGH, "HIGH",
+                                                         ifelse(`Percentile value` > GOOD, "Good",
+                                                         ifelse(`Percentile value` > MODERATE, "MODERATE",
+                                                         ifelse(`Percentile value` > POOR, "POOR", "BAD")))),
+                                   parameter == "BOD" ~ ifelse(`Percentile value` < HIGH, "HIGH",
+                                                         ifelse(`Percentile value` < GOOD, "Good",
+                                                         ifelse(`Percentile value` < MODERATE, "MODERATE",
+                                                         ifelse(`Percentile value` < POOR, "POOR", "BAD")))),
+                                   parameter == "orthoP" ~ ifelse(Mean < HIGH, "HIGH",
+                                                         ifelse(Mean < GOOD, "Good",
+                                                         ifelse(Mean < MODERATE, "MODERATE",
+                                                         ifelse(Mean < POOR, "POOR", "BAD")))),
+                                   parameter == "amm_N" ~ ifelse(`Percentile value` < HIGH, "HIGH",
+                                                         ifelse(`Percentile value` < GOOD, "Good",
+                                                         ifelse(`Percentile value` < MODERATE, "MODERATE",
+                                                         ifelse(`Percentile value` < POOR, "POOR", "BAD"))))))
+
+summ_rep <- summ_rep %>%
+  dplyr::filter(!is.na(STATUS)) %>%
+  dplyr::select(Location, parameter, STATUS) %>%
+  tidyr::pivot_wider(names_from = parameter,
+                     values_from = STATUS) %>%
+  dplyr::rename(`Location name` = Location)
+
+summary_report <- summary_report %>%
+  dplyr::left_join(summ_rep)
+
+DT::datatable(summary_report) %>%
+  DT::formatStyle(columns = 4,
+                  valueColumns = 15,
+                  target = "cell",
+                  # fontFamily = "Ariel, sans-serif",
+                  # border = '0.5px solid #000000',
+                  backgroundColor = styleEqual(c("High", "Good", "Moderate", "Poor", "Bad", ""),
+                                               c("#B7DEE8", "#C4D79B", "#FFFF66", "#FFCC66", "#FF9999", "White")))
+
 ```
 
 ```{r data_export}
@@ -915,10 +990,10 @@ if (exists("ea_wq_data") == FALSE) {
   ea_wq_data <- NULL
 }
 
-wb <- openxlsx::buildWorkbook(list(sheets[["PROBE_DATA"]], sheets[["LAB_DATA"]], sheets[["MANUAL_FIELD"]], ea_wq_data, lod_tab_data, exclusions_data, outliers_data, summary_tab_data, full_data, wide_output, wide_summary, desc))
+wb <- openxlsx::buildWorkbook(list(summary_report, sheets[["PROBE_DATA"]], sheets[["LAB_DATA"]], sheets[["MANUAL_FIELD"]], ea_wq_data, lod_tab_data, exclusions_data, outliers_data, summary_tab_data, full_data, wide_output, wide_summary, standards, desc))
 
 ### Apply sheet names
-names(wb) <- c("PROBE_DATA", "LAB_DATA", "MANUAL_FIELD", "EA_DATA", "OUTWITH_LOD", "EXCLUSIONS", "OUTLIERS", "SUMMARY", "FULL_DATA", "WIDE_FORMAT", "WIDE_FORMAT_SUMMARY", "DESCRIPTION")
+names(wb) <- c("Results summary", "PROBE_DATA", "LAB_DATA", "MANUAL_FIELD", "EA_DATA", "OUTWITH_LOD", "EXCLUSIONS", "OUTLIERS", "SUMMARY", "FULL_DATA", "WIDE_FORMAT", "WIDE_FORMAT_SUMMARY", "Standards", "DESCRIPTION")
 
 ### Conditional formatting
 openxlsx::conditionalFormatting(wb, "FULL_DATA", cols = 17, rows = 0:nrow(full_data)+1,
@@ -932,6 +1007,9 @@ openxlsx::conditionalFormatting(wb, "WIDE_FORMAT", cols = 4:ncol(wide_output), r
 openxlsx::conditionalFormatting(wb, "WIDE_FORMAT", cols = 4:ncol(wide_output), rows = 0:nrow(wide_output)+1,
                                 rule = '=LEFT(D1, 1) = ">"',
                                 style = createStyle(fontColour = "#F79646"))
+
+# openxlsx::conditionalFormatting(wb, "Results summary", cols = 4, rows = 0:nrow(summary_report),
+#                                 rule = paste0("=$D2"))
 
 ### Export
 filename <- paste0("Output/WQ_analysis_data_", as.character(Sys.Date()), ".xlsx")
