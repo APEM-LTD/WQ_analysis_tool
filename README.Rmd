@@ -1,0 +1,28 @@
+---
+title: "WQ Analysis too user instructions"
+subtitle: "Version: 1.0.0"
+version: 1.0.0
+---
+
+This is the Water Quality (WQ) Data Analysis System (WQDAS), developed by APEM Ltd. This workflow will produce an html-format report for a given set of EA WIMS and/or APEM site IDs. The report will include data summaries, a location map and charts. The charts include interactive plots to allow individual data points to be investigated.
+
+This R project contains:
+
+* An R project file WQ_analysis_tool.Rproj.
+* A main markdown script WQDAS_vX.Rmd (where X is the version number stated above)
+* A folder R, containing an R script wq_functions.R
+* A folder Data containing input data:
+  - APEM_input_template.xlsx: A blank template demonstrating the expected structure of the Invertebase export.
+  - WQ template example.xlsx: An example completed input template.
+* A folder Output, which should be empty except for a placeholder file.
+* This README file
+
+General Instructions:
+
+* Create a copy of this project and rename the folder as necessary.
+* If including APEM data, complete and save a copy of the input template to the Data folder. All data must match the structure shown in the input template. The Metadata tab MUST also be completed to specify required site details and to link data between the different tabs if different IDs have been used.
+* Open the main markdown script WQDAS_vX.Rmd from the folder WQ_analysis_tool (the top level folder of this project). This file contains initial header information, more detailed operating instructions and then a SETTINGS section which is where users enter their specifications.
+* Complete the SETTINGS section, overwriting the default values if required. In particular, confirm the file path for any APEM data to be imported.
+* Save a copy of the script with your parameters specified.
+* To run the script, use the Knit button at the top of the view. This will render the output, including an audit trail, in html format, which can be opened in your browser. The html file will saved in the top level folder in the project (ie, the same folder as this readme file. By default, the report will be called MIDAS_vX.html (the name will match the script you have run).
+* Check the charts and data produced in the Outputs folder. If you need to keep a copy of any of the files, make a copy before re-running the tool otherwise they will be overwritten.
