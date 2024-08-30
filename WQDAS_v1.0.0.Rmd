@@ -1,5 +1,5 @@
 ---
-title: "Water Quality Data Analysis System"
+title: "Water Quality Data Analysis System - WQDAS"
 author: "APEM Ltd"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
