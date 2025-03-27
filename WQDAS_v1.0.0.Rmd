@@ -504,7 +504,8 @@ The table below summarises results that are outwith the limit of detection (LOD)
 # Negative results/outside possible range
 full_data <- full_data %>%
   dplyr::mutate(exclude = ifelse(result < 0 | result > 130, TRUE, FALSE),
-                exclude = ifelse(parameter == "pH" & (result < 0 | result > 14), TRUE, exclude))   # Add others as required
+                exclude = ifelse(parameter == "pH" & (result < 0 | result > 14), TRUE, exclude),
+                exclude = ifelse(parameter == "temp" & (result < -10 | result > 100), TRUE, exclude))   # Add others as required
 
 exclusions_data <- full_data %>%
   dplyr::filter(exclude) %>%
