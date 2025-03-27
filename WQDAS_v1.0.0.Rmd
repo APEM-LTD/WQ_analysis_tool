@@ -97,7 +97,7 @@ SHOW_DATA_SOURCE <- FALSE
 SHOW_NITRATE_STANDARD <- TRUE
 # Adjust min/max values to allow charts to zoom to data or to include the WFD standards as well
 # The default ("standards") uses all data including WFD standards. Use "data" to zoom charts to the data. This is useful if, for example, a dataset is clustered at the bottom of a chart) 
-CHART_ZOOM <- "data"
+CHART_ZOOM <- "standards"
 
 ```
 
@@ -503,7 +503,8 @@ The table below summarises results that are outwith the limit of detection (LOD)
 
 # Negative results/outside possible range
 full_data <- full_data %>%
-  dplyr::mutate(exclude = ifelse(result < 0 | result > 100, TRUE, FALSE))   # Add others as required
+  dplyr::mutate(exclude = ifelse(result < 0 | result > 130, TRUE, FALSE),
+                exclude = ifelse(parameter == "pH" & (result < 0 | result > 14), TRUE, exclude))   # Add others as required
 
 exclusions_data <- full_data %>%
   dplyr::filter(exclude) %>%
